@@ -1,72 +1,29 @@
-
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HashRouter, Routes, Route, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
-import { Note, ViewMode, Attachment, ChatMessage } from './types';
-import { APP_STORAGE_KEY, DEFAULT_NOTE_CONTENT, SUBJECTS } from './constants';
+import React, { useState, useEffect, useCallback } from 'react';
+import { HashRouter, Routes, Route, useNavigate, useParams } from 'react-router-dom';
+import { Note, ViewMode, Attachment, ChatMessage, DeepStudyMode, Toast } from './types';
+import { DEFAULT_NOTE_CONTENT, SUBJECTS } from './constants';
 import { identifySubject, generateTitle } from './services/geminiService';
 import { saveNoteToDB, deleteNoteFromDB, getAllNotesFromDB, migrateFromLocalStorage } from './services/db';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { Dashboard } from './components/Dashboard';
 import { AIStudyAssistant } from './components/AIStudyAssistant';
 import { RoutineDashboard } from './components/RoutineDashboard';
+import { Sidebar } from './components/Sidebar';
+import { DeepStudyModal } from './components/DeepStudyModal';
+import { ToastContainer } from './components/Toast';
 import { 
-  Plus, 
-  Menu, 
-  Save, 
-  Download, 
-  Upload, 
-  Sparkles, 
-  LayoutDashboard, 
-  Search,
-  BookOpen,
-  Edit2,
-  Trash2,
-  PanelLeftClose,
-  PanelLeftOpen,
-  FileText,
-  FolderOpen,
-  Youtube,
-  Image as ImageIcon,
-  Paperclip,
-  Wand2,
-  File as FileIcon,
-  X,
-  Loader2,
-  CheckSquare
+  Trash2, FileText, Image as ImageIcon, Paperclip, 
+  Sparkles, Loader2, X, BrainCircuit 
 } from 'lucide-react';
 
 // --- Constants ---
-// Increased to 20MB for IndexedDB
 const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024; 
 
 // --- Helper Components ---
 
-const SidebarItem = ({ 
-  active, 
-  to, 
-  icon: Icon, 
-  label, 
-  subLabel 
-}: { active: boolean, to: string, icon: any, label: string, subLabel?: string }) => (
-  <Link 
-    to={to} 
-    className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 group ${
-      active 
-      ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200' 
-      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-    }`}
-  >
-    <Icon className={`w-5 h-5 ${active ? 'text-indigo-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
-    <div className="overflow-hidden">
-      <div className="truncate font-medium text-sm">{label}</div>
-      {subLabel && <div className="truncate text-xs text-gray-400">{subLabel}</div>}
-    </div>
-  </Link>
-);
-
 const FileAttachmentView = ({ attachment, onView, onDelete }: { attachment: Attachment, onView: (d: string, t: string) => void, onDelete: () => void }) => {
   return (
-    <div className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm mb-2 group">
+    <div className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg shadow-sm mb-2 group transition-all hover:shadow-md hover:border-indigo-200">
       <div className="flex items-center gap-3 overflow-hidden">
         <div className="p-2 bg-indigo-50 rounded text-indigo-600">
            {attachment.type === 'pdf' ? <FileText className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
@@ -79,7 +36,7 @@ const FileAttachmentView = ({ attachment, onView, onDelete }: { attachment: Atta
       <div className="flex items-center gap-2">
          <button 
            onClick={() => onView(attachment.data, attachment.type)}
-           className="px-3 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 font-medium"
+           className="px-3 py-1 text-xs bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100 font-medium transition-colors"
          >
            View
          </button>
@@ -93,11 +50,10 @@ const FileAttachmentView = ({ attachment, onView, onDelete }: { attachment: Atta
 
 const PDFOverlay = ({ data, onClose }: { data: string, onClose: () => void }) => {
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Convert Base64 data to Blob URL for reliable rendering in iframe
         try {
-            // Strip MIME prefix if present (e.g. "data:application/pdf;base64,")
             const base64Content = data.includes('base64,') ? data.split('base64,')[1] : data;
             const byteCharacters = atob(base64Content);
             const byteNumbers = new Array(byteCharacters.length);
@@ -114,26 +70,37 @@ const PDFOverlay = ({ data, onClose }: { data: string, onClose: () => void }) =>
             };
         } catch (e) {
             console.error("Error creating PDF blob", e);
+            setError("Could not render PDF. File might be corrupted.");
         }
     }, [data]);
 
     return (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
-            <div className="bg-white w-full h-full max-w-5xl rounded-lg shadow-2xl flex flex-col overflow-hidden relative">
-                <button onClick={onClose} className="absolute top-2 right-2 p-2 bg-slate-800 text-white rounded-full hover:bg-slate-700 z-10 shadow-lg">
-                    <X className="w-5 h-5" />
-                </button>
-                {blobUrl ? (
-                    <iframe 
-                        src={blobUrl} 
-                        className="w-full h-full border-none"
-                        title="PDF Viewer"
-                    />
-                ) : (
-                    <div className="flex items-center justify-center h-full">
-                        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
-                    </div>
-                )}
+        <div className="fixed inset-0 z-[9999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white w-full h-full max-w-6xl rounded-2xl shadow-2xl flex flex-col overflow-hidden relative animate-fade-in">
+                <div className="bg-slate-800 text-white p-3 flex justify-between items-center">
+                    <span className="font-medium flex items-center gap-2"><FileText className="w-4 h-4"/> PDF Viewer</span>
+                    <button onClick={onClose} className="p-1.5 hover:bg-slate-700 rounded-full transition-colors">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="flex-1 relative bg-gray-100">
+                    {error ? (
+                        <div className="flex flex-col items-center justify-center h-full text-red-500">
+                            <X className="w-12 h-12 mb-4 opacity-50" />
+                            <p>{error}</p>
+                        </div>
+                    ) : blobUrl ? (
+                        <iframe 
+                            src={blobUrl} 
+                            className="w-full h-full border-none"
+                            title="PDF Viewer"
+                        />
+                    ) : (
+                        <div className="flex items-center justify-center h-full">
+                            <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
@@ -144,11 +111,15 @@ const PDFOverlay = ({ data, onClose }: { data: string, onClose: () => void }) =>
 const NoteEditorPage = ({ 
   notes, 
   updateNote, 
-  deleteNote 
+  deleteNote,
+  addNote,
+  addToast
 }: { 
   notes: Note[], 
   updateNote: (n: Note) => void, 
-  deleteNote: (id: string) => void 
+  deleteNote: (id: string) => void,
+  addNote: (n: Note) => void,
+  addToast: (m: string, t: 'success'|'error'|'info') => void
 }) => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -156,15 +127,15 @@ const NoteEditorPage = ({
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  
+  // UI States
   const [isAIContextMenuOpen, setIsAIContextMenuOpen] = useState(false);
+  const [deepStudyMode, setDeepStudyMode] = useState<DeepStudyMode | null>(null);
   const [mode, setMode] = useState<ViewMode>(ViewMode.SPLIT);
   const [isUploading, setIsUploading] = useState(false);
   const [overlayData, setOverlayData] = useState<string | null>(null);
-
-  // Chat History Persistence (Per session on this note)
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
 
-  // Reset chat history when switching notes
   useEffect(() => {
     setChatHistory([]);
   }, [id]);
@@ -179,12 +150,9 @@ const NoteEditorPage = ({
 
   const handleSave = useCallback(() => {
     if (!note) return;
-    
-    // Only update if changes exist
     if (note.title === title && note.content === content && JSON.stringify(note.attachments) === JSON.stringify(attachments)) {
         return;
     }
-
     updateNote({
       ...note,
       title,
@@ -194,7 +162,6 @@ const NoteEditorPage = ({
     });
   }, [note, title, content, attachments, updateNote]);
 
-  // Auto-save debounce
   useEffect(() => {
     const timer = setTimeout(handleSave, 1500); 
     return () => clearTimeout(timer);
@@ -205,7 +172,7 @@ const NoteEditorPage = ({
     if (!file) return;
 
     if (file.size > MAX_ATTACHMENT_SIZE) {
-        alert("File too large! Max 20MB allowed.");
+        addToast("File too large! Max 20MB allowed.", 'error');
         return;
     }
 
@@ -224,11 +191,8 @@ const NoteEditorPage = ({
                     data: result
                 };
                 setAttachments(prev => [...prev, newAttachment]);
+                addToast("PDF Attached", 'success');
             } else if (file.type.startsWith('image/')) {
-                 // Images can go inline or as attachment. 
-                 // If large, better as attachment, but Markdown needs URL.
-                 // We will append dataURI for now, but in future could use Blob URL + Service Worker (too complex for static)
-                 // Or add to attachments list and provide a copyable link.
                  const newAttachment: Attachment = {
                     id: crypto.randomUUID(),
                     type: 'image',
@@ -236,19 +200,19 @@ const NoteEditorPage = ({
                     data: result
                 };
                 setAttachments(prev => [...prev, newAttachment]);
-                 // Also insert into text if user wants
                  setContent(prev => prev + `\n\n![${file.name}](${result})\n\n`);
+                 addToast("Image embedded", 'success');
             } else if (file.name.endsWith('.md') || file.type === 'text/plain') {
-                 // Text append
                  setContent(prev => prev + `\n\n${result}\n\n`);
+                 addToast("Text appended", 'success');
             } else {
-                 alert("Unsupported file type.");
+                 addToast("Unsupported file type", 'error');
             }
         } catch (e) {
-            alert("Error processing file.");
+            addToast("Error processing file", 'error');
         } finally {
             setIsUploading(false);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         }
     };
 
@@ -261,6 +225,7 @@ const NoteEditorPage = ({
 
   const removeAttachment = (attId: string) => {
       setAttachments(prev => prev.filter(a => a.id !== attId));
+      addToast("Attachment removed", 'info');
   };
 
   if (!note) return <div className="p-10 text-center text-gray-500">Note not found</div>;
@@ -269,13 +234,39 @@ const NoteEditorPage = ({
     <div className="flex flex-col h-full bg-white relative">
       {overlayData && <PDFOverlay data={overlayData} onClose={() => setOverlayData(null)} />}
       
+      {deepStudyMode && (
+          <DeepStudyModal 
+            mode={deepStudyMode}
+            note={note}
+            allNotes={notes}
+            onClose={() => setDeepStudyMode(null)}
+            onInsertContent={(text) => setContent(prev => prev + '\n\n' + text)}
+            addToast={addToast}
+            onSaveNewNote={(newTitle, newContent) => {
+                const newNote: Note = {
+                    id: crypto.randomUUID(),
+                    title: newTitle,
+                    content: newContent,
+                    createdAt: Date.now(),
+                    updatedAt: Date.now(),
+                    tags: ['exam-generated'],
+                    subject: note.subject,
+                    attachments: []
+                };
+                addNote(newNote);
+                setDeepStudyMode(null);
+                navigate(`/note/${newNote.id}`);
+            }}
+          />
+      )}
+
       {/* Toolbar */}
-      <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white shrink-0 z-10 shadow-sm">
+      <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 bg-white shrink-0 z-10 shadow-sm backdrop-blur-md bg-white/90">
         <div className="flex items-center gap-4 flex-1">
           <input 
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="text-xl font-bold text-gray-800 bg-transparent border-none focus:ring-0 placeholder-gray-300 w-full focus:outline-none"
+            className="text-xl font-bold text-slate-800 bg-transparent border-none focus:ring-0 placeholder-gray-300 w-full focus:outline-none"
             placeholder="Untitled Note"
           />
         </div>
@@ -305,6 +296,14 @@ const NoteEditorPage = ({
                 View
             </button>
           </div>
+
+          <button 
+            onClick={() => setDeepStudyMode('synthesize')}
+            className="px-3 py-2 bg-slate-900 text-white rounded-lg flex items-center gap-2 hover:bg-slate-800 transition-all shadow-md active:scale-95"
+          >
+             <BrainCircuit className="w-4 h-4" />
+             <span className="text-xs font-bold hidden md:inline">Deep Study</span>
+          </button>
           
           <button 
             onClick={() => setIsAIContextMenuOpen(!isAIContextMenuOpen)}
@@ -312,7 +311,6 @@ const NoteEditorPage = ({
             title="AI Study Assistant"
           >
             <Sparkles className="w-5 h-5" />
-            <span className="text-xs font-semibold hidden md:inline">Assistant</span>
           </button>
           
           <button 
@@ -320,6 +318,7 @@ const NoteEditorPage = ({
                 if(window.confirm('Are you sure you want to delete this note?')) {
                     deleteNote(note.id);
                     navigate('/');
+                    addToast("Note deleted", 'info');
                 }
             }}
             className="p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
@@ -351,7 +350,7 @@ const NoteEditorPage = ({
                 <div className="p-8 min-h-full max-w-4xl mx-auto">
                     {/* Render Attachments area */}
                     {attachments.length > 0 && (
-                        <div className="mb-6 p-4 bg-gray-100 rounded-xl border border-gray-200">
+                        <div className="mb-6 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
                              <h4 className="text-xs font-bold text-gray-500 uppercase mb-3 flex items-center gap-2">
                                 <Paperclip className="w-3 h-3" /> Attachments
                              </h4>
@@ -396,13 +395,21 @@ const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [organizing, setOrganizing] = useState(false);
   const [organizeProgress, setOrganizeProgress] = useState(0);
+  
+  // Toast State
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
-  // Load notes on mount from DB
+  const addToast = (message: string, type: 'success' | 'error' | 'info') => {
+      setToasts(prev => [...prev, { id: crypto.randomUUID(), message, type }]);
+  };
+
+  const removeToast = (id: string) => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+  };
+
   useEffect(() => {
     const init = async () => {
-        // Try migrate
         await migrateFromLocalStorage();
-        // Load
         const dbNotes = await getAllNotesFromDB();
         
         if (dbNotes.length === 0) {
@@ -425,7 +432,7 @@ const App = () => {
     init();
   }, []);
 
-  const addNote = async () => {
+  const addNote = async (partialNote?: Partial<Note>) => {
     const newNote: Note = {
       id: crypto.randomUUID(),
       title: 'Untitled Note',
@@ -434,7 +441,8 @@ const App = () => {
       updatedAt: Date.now(),
       tags: [],
       subject: 'General',
-      attachments: []
+      attachments: [],
+      ...partialNote
     };
     await saveNoteToDB(newNote);
     setNotes(prev => [newNote, ...prev]);
@@ -442,9 +450,7 @@ const App = () => {
   };
 
   const updateNote = async (updated: Note) => {
-    // Optimistic UI update
     setNotes(prev => prev.map(n => n.id === updated.id ? updated : n));
-    // Persist to DB
     await saveNoteToDB(updated);
   };
 
@@ -453,178 +459,132 @@ const App = () => {
     await deleteNoteFromDB(id);
   };
 
+  // Fixed Sequential Processing for Stability
   const autoOrganizeNotes = async () => {
       if(!window.confirm("This will use AI to categorize and RENAME your notes based on content. Continue?")) return;
       
       setOrganizing(true);
       setOrganizeProgress(0);
-      const total = notes.length;
-      const updatedNotesList = [...notes];
+      
+      try {
+          // Process sequentially to avoid rate limits and crashes
+          const notesToProcess = [...notes];
+          let updatedCount = 0;
 
-      // Sequential processing to avoid Rate Limits (Promise.all triggers 429 often on free tier)
-      for (let i = 0; i < total; i++) {
-          const note = updatedNotesList[i];
-          if (note.content.length < 20) continue; // Skip empty
+          for (let i = 0; i < notesToProcess.length; i++) {
+              const note = notesToProcess[i];
+              // Skip empty notes or notes that already have good titles (simple check)
+              if (note.content.length < 20) continue; 
 
-          try {
-             // Parallel request for one note is fine
-             const [newSubject, newTitle] = await Promise.all([
-                 identifySubject(note.content),
-                 generateTitle(note.content)
-             ]);
-             
-             updatedNotesList[i] = {
-                 ...note,
-                 subject: newSubject,
-                 title: (note.title === 'New Note' || note.title === 'Untitled Note' || note.title === 'Untitled') ? newTitle : note.title
-             };
-             
-             // Update progress
-             setOrganizeProgress(Math.round(((i + 1) / total) * 100));
-             
-             // Save intermediate result to DB
-             await saveNoteToDB(updatedNotesList[i]);
+              try {
+                // Determine new metadata
+                const newSubject = await identifySubject(note.content);
+                const newTitle = (note.title === 'New Note' || note.title === 'Untitled Note' || note.title === 'Untitled') 
+                    ? await generateTitle(note.content) 
+                    : note.title;
 
-          } catch (e) {
-              console.error("Error organizing note", note.id, e);
+                const updatedNote = {
+                    ...note,
+                    subject: newSubject,
+                    title: newTitle
+                };
+
+                // Update DB immediately
+                await saveNoteToDB(updatedNote);
+                
+                // Update Local State immediately for UI feedback
+                setNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n));
+                
+                updatedCount++;
+                setOrganizeProgress(Math.round(((i + 1) / notesToProcess.length) * 100));
+
+              } catch (err) {
+                  console.error(`Failed to organize note ${note.id}`, err);
+              }
           }
-      }
+          addToast(`Organized ${updatedCount} notes successfully`, 'success');
 
-      setNotes(updatedNotesList);
-      setOrganizing(false);
+      } catch (e) {
+          console.error("Critical Organization Failure", e);
+          addToast("Organization process failed midway.", 'error');
+      } finally {
+          setOrganizing(false);
+          setOrganizeProgress(0);
+      }
   };
 
-  // Group notes by subject for Sidebar using the strict constants order
-  const notesBySubject = notes.reduce((acc, note) => {
-      const subject = note.subject || 'General';
-      if (!acc[subject]) acc[subject] = [];
-      acc[subject].push(note);
-      return acc;
-  }, {} as Record<string, Note[]>);
+  const handleExport = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(notes, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `mindvault_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+    addToast("Export started", 'info');
+  };
 
-  // Sort subjects based on predefined list, then alphabetical for others
-  const sortedSubjects = Object.keys(notesBySubject).sort((a, b) => {
-      const idxA = SUBJECTS.indexOf(a);
-      const idxB = SUBJECTS.indexOf(b);
-      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-      if (idxA !== -1) return -1;
-      if (idxB !== -1) return 1;
-      return a.localeCompare(b);
-  });
-
-  const filteredNotes = notes.filter(n => 
-    n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    n.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    n.subject?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].id) {
+            for(const note of parsed) {
+                await saveNoteToDB(note);
+            }
+            const dbNotes = await getAllNotesFromDB();
+            setNotes(dbNotes);
+            addToast("Vault imported successfully", 'success');
+        } else {
+            throw new Error("Invalid format");
+        }
+      } catch (err) {
+        addToast("Failed to import JSON. Invalid format.", 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <HashRouter>
-      <div className="flex h-screen w-screen overflow-hidden text-slate-800 font-sans bg-gray-50 selection:bg-indigo-100 selection:text-indigo-800">
+      <div className="flex h-screen w-screen overflow-hidden text-slate-800 font-sans bg-transparent selection:bg-indigo-100 selection:text-indigo-800">
         
-        {/* Sidebar */}
-        <div className={`flex flex-col bg-white border-r border-gray-200 transition-all duration-300 ease-in-out ${sidebarOpen ? 'w-80' : 'w-20'} shrink-0 z-20 shadow-xl`}>
-          <div className="h-16 flex items-center px-4 border-b border-gray-100 justify-between shrink-0 bg-white">
-            {sidebarOpen && (
-                 <div className="font-extrabold text-xl text-indigo-600 flex items-center gap-2 tracking-tight">
-                    <BookOpen className="w-7 h-7" />
-                    MindVault
-                </div>
-            )}
-             <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-md mx-auto transition-colors">
-                {sidebarOpen ? <PanelLeftClose className="w-5 h-5"/> : <PanelLeftOpen className="w-5 h-5" />}
-             </button>
-          </div>
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-          <div className="p-4 space-y-3 border-b border-gray-100 shrink-0 bg-white">
-             {sidebarOpen ? (
-                <div className="relative">
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                    <input 
-                        type="text" 
-                        placeholder="Search notes..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none focus:bg-white transition-all"
-                    />
-                </div>
-             ) : (
-                 <div className="flex justify-center py-2">
-                     <Search className="w-5 h-5 text-gray-400" />
-                 </div>
-             )}
-             
-             <SidebarItemContainer active={false} to="/" icon={LayoutDashboard} label="Dashboard" sidebarOpen={sidebarOpen} />
-             <SidebarItemContainer active={false} to="/routine" icon={CheckSquare} label="Routine" sidebarOpen={sidebarOpen} />
-             
-             <button 
-                onClick={async () => {
-                    const id = await addNote();
-                }}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200 ${!sidebarOpen ? 'justify-center' : ''}`}
-            >
-                <Plus className="w-5 h-5" />
-                {sidebarOpen && <span className="font-medium text-sm">New Note</span>}
-            </button>
-          </div>
-
-          {/* Grouped Notes List */}
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 bg-white">
-            
-            {/* Auto Organize Button */}
-            {sidebarOpen && (
-                <button 
-                    onClick={autoOrganizeNotes}
-                    disabled={organizing}
-                    className="w-full mb-6 flex items-center justify-between px-4 py-3 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all border border-indigo-100 group"
-                >
-                    <span className="flex items-center gap-2">
-                        <Wand2 className={`w-4 h-4 ${organizing ? 'animate-spin' : ''}`} />
-                        {organizing ? `Organizing (${organizeProgress}%)` : 'Auto-Organize Library'}
-                    </span>
-                </button>
-            )}
-
-            {filteredNotes.length === 0 && sidebarOpen && (
-                <div className="text-sm text-gray-400 px-4 py-8 text-center italic">
-                    No notes found.
-                </div>
-            )}
-
-            {searchQuery ? (
-                // Flat list on search
-                filteredNotes.map(note => (
-                    <SidebarNavLink key={note.id} note={note} sidebarOpen={sidebarOpen} />
-                ))
-            ) : (
-                // Grouped by Subject
-                sortedSubjects.map(subject => (
-                    <div key={subject} className="mb-2">
-                        {sidebarOpen && (
-                            <div className="flex items-center gap-2 px-3 py-1.5 text-[11px] font-extrabold text-gray-400 uppercase tracking-widest mt-2 mb-1">
-                                {subject}
-                            </div>
-                        )}
-                        {notesBySubject[subject].map(note => (
-                            <SidebarNavLink key={note.id} note={note} sidebarOpen={sidebarOpen} />
-                        ))}
-                    </div>
-                ))
-            )}
-          </div>
-          
-          {/* Footer Actions */}
-          <div className="p-3 border-t border-gray-200 bg-gray-50 space-y-2 shrink-0">
-             <ExportImportButtons sidebarOpen={sidebarOpen} notes={notes} setNotes={setNotes} />
-          </div>
-        </div>
+        <Sidebar 
+            isOpen={sidebarOpen}
+            setIsOpen={setSidebarOpen}
+            notes={notes}
+            addNote={async () => { await addNote(); }}
+            autoOrganize={autoOrganizeNotes}
+            isOrganizing={organizing}
+            organizeProgress={organizeProgress}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            onExport={handleExport}
+            onImport={handleImport}
+        />
 
         {/* Main Content */}
-        <div className="flex-1 h-full overflow-hidden relative bg-white">
+        <div className="flex-1 h-full overflow-hidden relative bg-white/50 backdrop-blur-sm">
            <Routes>
              <Route path="/" element={<Dashboard notes={notes} />} />
              <Route path="/routine" element={<RoutineDashboard />} />
-             <Route path="/note/:id" element={<NoteEditorPage notes={notes} updateNote={updateNote} deleteNote={deleteNote} />} />
+             <Route 
+                path="/note/:id" 
+                element={
+                    <NoteEditorPage 
+                        notes={notes} 
+                        updateNote={updateNote} 
+                        deleteNote={deleteNote} 
+                        addNote={addNote} 
+                        addToast={addToast}
+                    />
+                } 
+             />
            </Routes>
         </div>
 
@@ -632,113 +592,5 @@ const App = () => {
     </HashRouter>
   );
 };
-
-// --- Sub Components ---
-
-const SidebarNavLink = ({ note, sidebarOpen }: { note: Note, sidebarOpen: boolean }) => {
-    const location = useLocation();
-    const isActive = location.pathname === `/note/${note.id}`;
-    
-    return (
-        <Link 
-            to={`/note/${note.id}`}
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 mb-0.5 group ${
-                isActive 
-                ? 'bg-indigo-50 text-indigo-700 font-medium' 
-                : 'text-slate-600 hover:bg-gray-100 hover:pl-4'
-            } ${!sidebarOpen ? 'justify-center' : ''}`}
-        >
-             {/* Small indicator dot/icon based on content */}
-             <div className={`shrink-0 ${isActive ? 'text-indigo-500' : 'text-gray-300 group-hover:text-gray-400'}`}>
-                {note.content.includes('youtube') ? <Youtube className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-             </div>
-
-            {sidebarOpen && (
-                <div className="overflow-hidden w-full">
-                    <div className="truncate text-sm">
-                        {note.title || "Untitled"}
-                    </div>
-                </div>
-            )}
-        </Link>
-    );
-}
-
-const SidebarItemContainer = ({active, to, icon: Icon, label, sidebarOpen}: any) => {
-    const location = useLocation();
-    const isActive = location.pathname === to;
-    return (
-        <Link 
-            to={to} 
-            className={`flex items-center gap-3 p-3 rounded-lg transition-all duration-200 ${
-            isActive 
-            ? 'bg-indigo-50 text-indigo-700 font-medium' 
-            : 'text-gray-600 hover:bg-gray-100'
-            } ${!sidebarOpen ? 'justify-center' : ''}`}
-        >
-            <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-gray-400'}`} />
-            {sidebarOpen && <span className="text-sm">{label}</span>}
-        </Link>
-    )
-}
-
-const ExportImportButtons = ({sidebarOpen, notes, setNotes}: any) => {
-    const exportData = () => {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(notes, null, 2));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr);
-        downloadAnchorNode.setAttribute("download", `mindvault_backup_${new Date().toISOString().slice(0,10)}.json`);
-        document.body.appendChild(downloadAnchorNode);
-        downloadAnchorNode.click();
-        downloadAnchorNode.remove();
-      };
-    
-      const importData = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-          try {
-            const parsed = JSON.parse(ev.target?.result as string);
-            if (Array.isArray(parsed)) {
-                if(parsed.length > 0 && parsed[0].id) {
-                    // Bulk save to DB
-                    for(const note of parsed) {
-                        await saveNoteToDB(note);
-                    }
-                    // Reload
-                    const dbNotes = await getAllNotesFromDB();
-                    setNotes(dbNotes);
-                    alert("Vault imported successfully!");
-                } else {
-                    throw new Error("Invalid format");
-                }
-            }
-          } catch (err) {
-            alert("Failed to import JSON. Invalid format.");
-          }
-        };
-        reader.readAsText(file);
-      };
-
-    if (sidebarOpen) {
-        return (
-            <div className="grid grid-cols-2 gap-2">
-                <button onClick={exportData} className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-gray-500 hover:text-indigo-600 p-2 hover:bg-indigo-50 rounded transition-colors border border-transparent hover:border-indigo-100">
-                    <Download className="w-4 h-4" /> EXPORT
-                </button>
-                <label className="flex flex-col items-center justify-center gap-1 text-[10px] font-bold text-gray-500 hover:text-indigo-600 p-2 hover:bg-indigo-50 rounded cursor-pointer transition-colors border border-transparent hover:border-indigo-100">
-                    <Upload className="w-4 h-4" /> IMPORT
-                    <input type="file" className="hidden" accept=".json" onChange={importData} />
-                </label>
-            </div>
-        )
-    }
-    return (
-        <button onClick={exportData} className="flex justify-center w-full p-2 text-gray-400 hover:text-indigo-600">
-            <Download className="w-5 h-5" />
-        </button>
-    )
-}
 
 export default App;

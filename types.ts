@@ -8,8 +8,7 @@ export interface Note {
   tags: string[];
   subject?: string;
   summary?: string;
-  attachments?: Attachment[]; // Store metadata only, data in IDB for large files if needed, or kept here for simplicity if < 1MB.
-                              // For this update, we will keep structure but App.tsx handles the heavy lifting via DB.
+  attachments?: Attachment[]; 
 }
 
 export interface Attachment {
@@ -48,4 +47,12 @@ export interface Task {
   completed: boolean;
   category: 'daily' | 'weekly' | 'exam';
   priority: 'low' | 'medium' | 'high';
+}
+
+export type DeepStudyMode = 'synthesize' | 'exam' | 'grade';
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
 }

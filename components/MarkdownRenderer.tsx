@@ -13,8 +13,6 @@ const components = (isChat: boolean) => ({
     const { href, children } = props;
     if (!href) return <span {...props}>{children}</span>;
     
-    // Improved Regex to capture video ID from various YouTube URL formats
-    // Matches: youtube.com/watch?v=ID, youtube.com/embed/ID, youtu.be/ID
     const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
     const youtubeMatch = href.match(youtubeRegex);
 
@@ -25,12 +23,13 @@ const components = (isChat: boolean) => ({
           <iframe
             width="100%"
             height="100%"
-            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+            src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1&origin=${window.location.origin}`}
             title="YouTube video player"
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
             className="absolute top-0 left-0 w-full h-full"
+            referrerPolicy="strict-origin-when-cross-origin"
           />
         </div>
       );
@@ -73,6 +72,16 @@ const components = (isChat: boolean) => ({
       ? <code {...props} className="bg-slate-100 text-indigo-700 px-1 py-0.5 rounded text-xs font-mono border border-slate-200" />
       : <code {...props} className="block bg-slate-800 text-slate-200 p-3 rounded-lg overflow-x-auto text-xs font-mono my-3" />
   ),
+  table: ({node, ...props}: any) => (
+    <div className="overflow-x-auto my-4 rounded-lg border border-gray-200">
+        <table {...props} className="min-w-full divide-y divide-gray-200 text-sm" />
+    </div>
+  ),
+  thead: ({node, ...props}: any) => <thead {...props} className="bg-gray-50" />,
+  th: ({node, ...props}: any) => <th {...props} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider font-bold" />,
+  tbody: ({node, ...props}: any) => <tbody {...props} className="bg-white divide-y divide-gray-200" />,
+  tr: ({node, ...props}: any) => <tr {...props} className="hover:bg-gray-50" />,
+  td: ({node, ...props}: any) => <td {...props} className="px-6 py-4 whitespace-nowrap text-slate-700" />,
 });
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, isChat = false }) => {

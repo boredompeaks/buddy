@@ -10,6 +10,7 @@ import { Sidebar } from './components/Sidebar';
 import { ToastContainer } from './components/Toast';
 import { NoteEditorPage } from './pages/NoteEditorPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ComingSoonOverlay } from './components/ComingSoonOverlay';
 
 // --- Helper Functions ---
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -22,6 +23,7 @@ const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [organizing, setOrganizing] = useState(false);
   const [organizeProgress, setOrganizeProgress] = useState(0);
+  const [showRoutine, setShowRoutine] = useState(false);
   
   // Toast State
   const [toasts, setToasts] = useState<Toast[]>([]);

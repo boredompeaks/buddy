@@ -155,6 +155,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         )}
                     </div>
                 )}
+                
+                {/* Global Notes Section */}
+                {isOpen && !searchQuery && (
+                    <div className="mt-8 pt-6 border-t border-gray-200">
+                        <GlobalNotesSection 
+                            onSelectNote={(fileName) => navigate(`/global/${fileName}`)}
+                            selectedFileName={location.pathname.startsWith('/global/') ? location.pathname.split('/global/')[1] : undefined}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Footer */}

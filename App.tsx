@@ -9,6 +9,7 @@ import { RoutineDashboard } from './components/RoutineDashboard';
 import { Sidebar } from './components/Sidebar';
 import { ToastContainer } from './components/Toast';
 import { NoteEditorPage } from './pages/NoteEditorPage';
+import { GlobalNotePage } from './pages/GlobalNotePage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ComingSoonOverlay } from './components/ComingSoonOverlay';
 
@@ -211,7 +212,17 @@ const App = () => {
             <ErrorBoundary>
               <Routes>
                 <Route path="/" element={<Dashboard notes={notes} />} />
-                <Route path="/routine" element={<RoutineDashboard />} />
+                <Route 
+                  path="/routine" 
+                  element={
+                    <div className="relative w-full h-full">
+                      <RoutineDashboard />
+                      {!showRoutine && (
+                        <ComingSoonOverlay onBreak={() => setShowRoutine(true)} />
+                      )}
+                    </div>
+                  } 
+                />
                 <Route 
                     path="/note/:id" 
                     element={
@@ -220,6 +231,18 @@ const App = () => {
                             updateNote={updateNote} 
                             deleteNote={deleteNote} 
                             addNote={addNote} 
+                            addToast={addToast}
+                        />
+                    } 
+                />
+                <Route 
+                    path="/global/:fileName" 
+                    element={
+                        <GlobalNotePage 
+                            onForkNote={async (note) => {
+                                await addNote(note);
+                                addToast('Note forked to your collection!', 'success');
+                            }}
                             addToast={addToast}
                         />
                     } 

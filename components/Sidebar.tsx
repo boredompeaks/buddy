@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Note } from '../types';
 import { 
     LayoutDashboard, CheckSquare, Plus, Search, PanelLeftClose, PanelLeftOpen, 
@@ -8,6 +8,7 @@ import {
     Download, Upload
 } from 'lucide-react';
 import { SUBJECTS } from '../constants';
+import { GlobalNotesSection } from './GlobalNotesSection';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -28,6 +29,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     organizeProgress, searchQuery, setSearchQuery, onExport, onImport
 }) => {
     const location = useLocation();
+    const navigate = useNavigate();
     const [expandedSubjects, setExpandedSubjects] = useState<Record<string, boolean>>(
         SUBJECTS.reduce((acc, s) => ({...acc, [s]: true}), {})
     );

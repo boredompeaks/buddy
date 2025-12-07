@@ -26,6 +26,65 @@ function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
     }
 }
 
+// ================== DATABASE MIGRATION SYSTEM ==================
+// Current schema version - increment when making schema changes
+const CURRENT_SCHEMA_VERSION = 1;
+
+/**
+ * Migration functions map: version -> upgrade function
+ * Each migration upgrades from (version - 1) to (version)
+ */
+const MIGRATIONS: Record<number, (db: SQLite.SQLiteDatabase) => Promise<void>> = {
+    // Version 1: Initial schema (baseline, no migration needed)
+    1: async (_db) => {
+        // This is the baseline version - tables created in initDatabase
+        console.log('[DB Migration] Schema v1 (baseline) initialized');
+    },
+    // Example future migration:
+    // 2: async (db) => {
+    //     await db.execAsync(`
+    //         ALTER TABLE notes ADD COLUMN syncedAt INTEGER;
+    //         CREATE INDEX IF NOT EXISTS idx_notes_synced ON notes(syncedAt);
+    //     `);
+    //     console.log('[DB Migration] Upgraded to schema v2');
+    // },
+};
+
+/**
+ * Runs any pending database migrations
+ */
+async function runMigrations(database: SQLite.SQLiteDatabase): Promise<void> {
+    // Get current database version
+    const result = await database.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
+    const currentVersion = result?.user_version ?? 0;
+
+    if (currentVersion >= CURRENT_SCHEMA_VERSION) {
+        console.log(`[DB Migration] Schema up-to-date (v${currentVersion})`);
+        return;
+    }
+
+    console.log(`[DB Migration] Upgrading from v${currentVersion} to v${CURRENT_SCHEMA_VERSION}`);
+
+    // Run each migration in order
+    for (let version = currentVersion + 1; version <= CURRENT_SCHEMA_VERSION; version++) {
+        const migration = MIGRATIONS[version];
+        if (migration) {
+            try {
+                await migration(database);
+            } catch (error) {
+                console.error(`[DB Migration] Failed at v${version}:`, error);
+                throw new DatabaseError(`Database migration to v${version} failed`, error);
+            }
+        }
+    }
+
+    // Update schema version
+    await database.execAsync(`PRAGMA user_version = ${CURRENT_SCHEMA_VERSION}`);
+    console.log(`[DB Migration] Successfully upgraded to v${CURRENT_SCHEMA_VERSION}`);
+}
+
+// ================== DATABASE INITIALIZATION ==================
+
 // Initialize database with indexes
 export async function initDatabase(): Promise<void> {
     if (isInitialized && db) {
@@ -34,6 +93,9 @@ export async function initDatabase(): Promise<void> {
 
     try {
         db = await SQLite.openDatabaseAsync(DB_NAME);
+
+        // Run migrations before schema setup
+        await runMigrations(db);
 
         await db.execAsync(`
     PRAGMA journal_mode = WAL;

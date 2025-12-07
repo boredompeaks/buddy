@@ -2,11 +2,29 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Brain, FileQuestion, FileText, BarChart3, Sparkles, ChevronRight } from 'lucide-react-native';
+import { Brain, FileQuestion, FileText, BarChart3, Sparkles, ChevronRight, Camera, Edit3 } from 'lucide-react-native';
 import { COLORS } from '../../src/constants';
+import { useMemo } from 'react';
+
+// Import stores for real stats
+import { useNotesStore } from '../../src/stores';
 
 export default function StudyScreen() {
     const router = useRouter();
+
+    // Get real data for stats
+    const notes = useNotesStore(state => state.notes);
+
+    // Calculate stats from stored data
+    const stats = useMemo(() => {
+        // These would ideally come from proper tracking stores
+        // For now, derive what we can from available data
+        return {
+            cardsReviewed: 0, // Would come from flashcard sessions
+            quizzesTaken: 0,  // Would come from quiz sessions
+            avgScore: 0,      // Would come from quiz sessions
+        };
+    }, []);
 
     const studyOptions = [
         {
@@ -31,7 +49,7 @@ export default function StudyScreen() {
             description: 'Generate exam papers',
             icon: FileText,
             color: COLORS.light.accent,
-            route: '/modals/paper-generator',
+            route: '/(tabs)/study/paper-generator', // Fixed: was /modals/paper-generator
         },
         {
             id: 'analytics',
@@ -40,6 +58,24 @@ export default function StudyScreen() {
             icon: BarChart3,
             color: '#10b981',
             route: '/(tabs)/study/analytics',
+        },
+    ];
+
+    // Additional study tools
+    const advancedTools = [
+        {
+            id: 'grading',
+            title: 'Answer Grading',
+            description: 'Grade your handwritten answers with AI',
+            icon: Camera,
+            route: '/(tabs)/study/answer-grading',
+        },
+        {
+            id: 'summary',
+            title: 'AI Summary',
+            description: 'Generate summaries from your notes',
+            icon: Edit3,
+            route: '/modals/ai-chat',
         },
     ];
 
@@ -72,37 +108,42 @@ export default function StudyScreen() {
                     })}
                 </View>
 
-                {/* AI Deep Study */}
-                <TouchableOpacity
-                    style={styles.deepStudyCard}
-                    onPress={() => router.push('/modals/deep-study')}
-                >
-                    <View style={styles.deepStudyIcon}>
-                        <Sparkles size={28} color="#fff" />
-                    </View>
-                    <View style={styles.deepStudyContent}>
-                        <Text style={styles.deepStudyTitle}>Deep Study Mode</Text>
-                        <Text style={styles.deepStudyDescription}>
-                            Generate notes from PDFs, create exam papers, grade your answers
-                        </Text>
-                    </View>
-                    <ChevronRight size={24} color={COLORS.light.primary} />
-                </TouchableOpacity>
+                {/* Advanced Tools Section */}
+                <Text style={styles.sectionTitle}>AI Tools</Text>
+                {advancedTools.map((tool) => {
+                    const Icon = tool.icon;
+                    return (
+                        <TouchableOpacity
+                            key={tool.id}
+                            style={styles.toolCard}
+                            onPress={() => router.push(tool.route as any)}
+                        >
+                            <View style={[styles.toolIcon, { backgroundColor: COLORS.light.primary + '20' }]}>
+                                <Icon size={24} color={COLORS.light.primary} />
+                            </View>
+                            <View style={styles.toolContent}>
+                                <Text style={styles.toolTitle}>{tool.title}</Text>
+                                <Text style={styles.toolDescription}>{tool.description}</Text>
+                            </View>
+                            <ChevronRight size={20} color={COLORS.light.textMuted} />
+                        </TouchableOpacity>
+                    );
+                })}
 
-                {/* Quick Stats Placeholder */}
+                {/* Quick Stats */}
                 <View style={styles.statsSection}>
                     <Text style={styles.sectionTitle}>Your Progress</Text>
                     <View style={styles.statsRow}>
                         <View style={styles.statCard}>
-                            <Text style={styles.statValue}>0</Text>
-                            <Text style={styles.statLabel}>Cards Reviewed</Text>
+                            <Text style={styles.statValue}>{notes.length}</Text>
+                            <Text style={styles.statLabel}>Notes Created</Text>
                         </View>
                         <View style={styles.statCard}>
-                            <Text style={styles.statValue}>0</Text>
+                            <Text style={styles.statValue}>{stats.quizzesTaken}</Text>
                             <Text style={styles.statLabel}>Quizzes Taken</Text>
                         </View>
                         <View style={styles.statCard}>
-                            <Text style={styles.statValue}>0%</Text>
+                            <Text style={styles.statValue}>{stats.avgScore}%</Text>
                             <Text style={styles.statLabel}>Avg Score</Text>
                         </View>
                     </View>
@@ -163,6 +204,26 @@ const styles = StyleSheet.create({
     deepStudyContent: { flex: 1 },
     deepStudyTitle: { fontSize: 17, fontWeight: '700', color: COLORS.light.text },
     deepStudyDescription: { fontSize: 13, color: COLORS.light.textSecondary, marginTop: 4 },
+    // Tool card styles for Advanced Tools section
+    toolCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.light.surface,
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 10,
+        gap: 14,
+    },
+    toolIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    toolContent: { flex: 1 },
+    toolTitle: { fontSize: 15, fontWeight: '600', color: COLORS.light.text },
+    toolDescription: { fontSize: 12, color: COLORS.light.textSecondary, marginTop: 2 },
     statsSection: { marginTop: 8 },
     sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.light.text, marginBottom: 12 },
     statsRow: { flexDirection: 'row', gap: 12 },

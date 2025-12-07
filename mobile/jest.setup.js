@@ -30,7 +30,7 @@ jest.mock('expo-sqlite', () => ({
 
 // Mock crypto.randomUUID
 if (typeof global.crypto === 'undefined') {
-    global.crypto = {} as any;
+    global.crypto = {};
 }
 global.crypto.randomUUID = jest.fn().mockReturnValue('test-uuid-123');
 

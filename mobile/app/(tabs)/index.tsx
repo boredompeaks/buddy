@@ -1,15 +1,16 @@
 // Home Screen - Today's Plan & Dashboard
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, StatusBar } from 'react-native';
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Flame, BookOpen, CheckCircle2, Clock, ChevronRight, Sparkles, Target } from 'lucide-react-native';
+import { Flame, BookOpen, CheckCircle2, Clock, ChevronRight, Sparkles, Target, Plus, Calendar, FileText } from 'lucide-react-native';
 import { useNotesStore, useTasksStore, useExamStore, useStreakStore } from '../../src/stores';
-import { COLORS } from '../../src/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 import { format, differenceInDays } from 'date-fns';
 
 export default function HomeScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
     const [refreshing, setRefreshing] = useState(false);
 
     const notes = useNotesStore(state => state.notes);
@@ -52,65 +53,90 @@ export default function HomeScreen() {
     }, [notes]);
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+            <StatusBar barStyle={colors.text === '#1e293b' ? 'dark-content' : 'light-content'} />
             <ScrollView
                 style={styles.scrollView}
                 contentContainerStyle={styles.content}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
                 showsVerticalScrollIndicator={false}
             >
                 {/* Header */}
                 <View style={styles.header}>
                     <View>
-                        <Text style={styles.greeting}>Good {getTimeOfDay()}</Text>
-                        <Text style={styles.title}>Today's Plan</Text>
+                        <Text style={[styles.greeting, { color: colors.textSecondary }]}>Good {getTimeOfDay()}</Text>
+                        <Text style={[styles.title, { color: colors.text }]}>Today's Plan</Text>
                     </View>
-                    <TouchableOpacity style={styles.streakBadge}>
-                        <Flame size={20} color={streak.currentStreak > 0 ? '#f59e0b' : COLORS.light.textMuted} />
-                        <Text style={[styles.streakText, streak.currentStreak > 0 && styles.streakActive]}>
+                    <TouchableOpacity style={[styles.streakBadge, { backgroundColor: colors.surface }]}>
+                        <Flame size={20} color={streak.currentStreak > 0 ? '#f59e0b' : colors.textMuted} />
+                        <Text style={[styles.streakText, { color: streak.currentStreak > 0 ? '#f59e0b' : colors.textMuted }]}>
                             {streak.currentStreak}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
+                {/* Quick Actions */}
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.quickActionsScroll} contentContainerStyle={styles.quickActionsContent}>
+                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.surface }]} onPress={() => router.push('/(tabs)/routine')}>
+                        <View style={[styles.quickActionIcon, { backgroundColor: colors.primary + '20' }]}>
+                            <Plus size={20} color={colors.primary} />
+                        </View>
+                        <Text style={[styles.quickActionText, { color: colors.text }]}>Add Task</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.surface }]} onPress={() => router.push('/(tabs)/notes')}>
+                        <View style={[styles.quickActionIcon, { backgroundColor: colors.secondary + '20' }]}>
+                            <FileText size={20} color={colors.secondary} />
+                        </View>
+                        <Text style={[styles.quickActionText, { color: colors.text }]}>New Note</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={[styles.quickAction, { backgroundColor: colors.surface }]} onPress={() => router.push('/modals/ai-chat')}>
+                        <View style={[styles.quickActionIcon, { backgroundColor: colors.accent + '20' }]}>
+                            <Sparkles size={20} color={colors.accent} />
+                        </View>
+                        <Text style={[styles.quickActionText, { color: colors.text }]}>AI Chat</Text>
+                    </TouchableOpacity>
+                </ScrollView>
+
                 {/* Quick Stats */}
                 <View style={styles.statsRow}>
-                    <View style={styles.statCard}>
-                        <CheckCircle2 size={24} color={COLORS.light.success} />
-                        <Text style={styles.statValue}>{completedToday}</Text>
-                        <Text style={styles.statLabel}>Completed</Text>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                        <CheckCircle2 size={24} color={colors.success} />
+                        <Text style={[styles.statValue, { color: colors.text }]}>{completedToday}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Target size={24} color={COLORS.light.primary} />
-                        <Text style={styles.statValue}>{todaysTasks.length}</Text>
-                        <Text style={styles.statLabel}>Pending</Text>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                        <Target size={24} color={colors.primary} />
+                        <Text style={[styles.statValue, { color: colors.text }]}>{todaysTasks.length}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pending</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <BookOpen size={24} color={COLORS.light.secondary} />
-                        <Text style={styles.statValue}>{notes.length}</Text>
-                        <Text style={styles.statLabel}>Notes</Text>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                        <BookOpen size={24} color={colors.secondary} />
+                        <Text style={[styles.statValue, { color: colors.text }]}>{notes.length}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Notes</Text>
                     </View>
                 </View>
 
                 {/* Today's Tasks */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Today's Tasks</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Today's Tasks</Text>
                         <TouchableOpacity onPress={() => router.push('/(tabs)/routine')}>
-                            <Text style={styles.seeAll}>See All</Text>
+                            <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
                         </TouchableOpacity>
                     </View>
                     {todaysTasks.length === 0 ? (
                         <View style={styles.emptyState}>
-                            <CheckCircle2 size={32} color={COLORS.light.success} />
-                            <Text style={styles.emptyText}>All tasks completed! 🎉</Text>
+                            <CheckCircle2 size={32} color={colors.success} />
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>All tasks completed! 🎉</Text>
                         </View>
                     ) : (
                         todaysTasks.slice(0, 4).map(task => (
-                            <TouchableOpacity key={task.id} style={styles.taskItem}>
-                                <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(task.priority) }]} />
-                                <Text style={styles.taskText} numberOfLines={1}>{task.text}</Text>
-                                <ChevronRight size={18} color={COLORS.light.textMuted} />
+                            <TouchableOpacity key={task.id} style={[styles.taskItem, { backgroundColor: colors.surface }]}>
+                                <View style={[styles.priorityDot, { backgroundColor: getPriorityColor(task.priority, colors) }]} />
+                                <Text style={[styles.taskText, { color: colors.text }]} numberOfLines={1}>{task.text}</Text>
+                                <ChevronRight size={18} color={colors.textMuted} />
                             </TouchableOpacity>
                         ))
                     )}
@@ -120,22 +146,22 @@ export default function HomeScreen() {
                 {upcomingExams.length > 0 && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                            <Text style={styles.sectionTitle}>Upcoming Exams</Text>
+                            <Text style={[styles.sectionTitle, { color: colors.text }]}>Upcoming Exams</Text>
                             <TouchableOpacity onPress={() => router.push('/(tabs)/routine')}>
-                                <Text style={styles.seeAll}>See All</Text>
+                                <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
                             </TouchableOpacity>
                         </View>
                         {upcomingExams.map(exam => (
-                            <View key={exam.id} style={styles.examCard}>
+                            <View key={exam.id} style={[styles.examCard, { backgroundColor: colors.surface }]}>
                                 <View style={styles.examInfo}>
-                                    <Text style={styles.examSubject}>{exam.subjectName}</Text>
-                                    <Text style={styles.examDate}>{format(exam.examDate, 'MMM d, yyyy')}</Text>
+                                    <Text style={[styles.examSubject, { color: colors.text }]}>{exam.subjectName}</Text>
+                                    <Text style={[styles.examDate, { color: colors.textSecondary }]}>{format(exam.examDate, 'MMM d, yyyy')}</Text>
                                 </View>
-                                <View style={styles.examCountdown}>
-                                    <Text style={styles.countdownNumber}>
+                                <View style={[styles.examCountdown, { backgroundColor: colors.primary + '15' }]}>
+                                    <Text style={[styles.countdownNumber, { color: colors.primary }]}>
                                         {differenceInDays(exam.examDate, Date.now())}
                                     </Text>
-                                    <Text style={styles.countdownLabel}>days</Text>
+                                    <Text style={[styles.countdownLabel, { color: colors.primary }]}>days</Text>
                                 </View>
                             </View>
                         ))}
@@ -145,45 +171,32 @@ export default function HomeScreen() {
                 {/* Recent Notes */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>Recent Notes</Text>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Notes</Text>
                         <TouchableOpacity onPress={() => router.push('/(tabs)/notes')}>
-                            <Text style={styles.seeAll}>See All</Text>
+                            <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
                         </TouchableOpacity>
                     </View>
                     {recentNotes.length === 0 ? (
                         <View style={styles.emptyState}>
-                            <BookOpen size={32} color={COLORS.light.textMuted} />
-                            <Text style={styles.emptyText}>No notes yet</Text>
+                            <BookOpen size={32} color={colors.textMuted} />
+                            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No notes yet</Text>
                         </View>
                     ) : (
                         recentNotes.map(note => (
                             <TouchableOpacity
                                 key={note.id}
-                                style={styles.noteItem}
+                                style={[styles.noteItem, { backgroundColor: colors.surface }]}
                                 onPress={() => router.push(`/note/${note.id}`)}
                             >
                                 <View style={styles.noteInfo}>
-                                    <Text style={styles.noteTitle} numberOfLines={1}>{note.title}</Text>
-                                    <Text style={styles.noteSubject}>{note.subject}</Text>
+                                    <Text style={[styles.noteTitle, { color: colors.text }]} numberOfLines={1}>{note.title}</Text>
+                                    <Text style={[styles.noteSubject, { color: colors.textSecondary }]}>{note.subject}</Text>
                                 </View>
-                                <ChevronRight size={18} color={COLORS.light.textMuted} />
+                                <ChevronRight size={18} color={colors.textMuted} />
                             </TouchableOpacity>
                         ))
                     )}
                 </View>
-
-                {/* AI Study Assistant CTA */}
-                <TouchableOpacity
-                    style={styles.aiCta}
-                    onPress={() => router.push('/modals/ai-chat')}
-                >
-                    <Sparkles size={24} color="#fff" />
-                    <View style={styles.aiCtaText}>
-                        <Text style={styles.aiCtaTitle}>AI Study Assistant</Text>
-                        <Text style={styles.aiCtaSubtitle}>Ask doubts, generate quizzes, and more</Text>
-                    </View>
-                    <ChevronRight size={24} color="#fff" />
-                </TouchableOpacity>
             </ScrollView>
         </SafeAreaView>
     );
@@ -196,19 +209,18 @@ function getTimeOfDay(): string {
     return 'Evening';
 }
 
-function getPriorityColor(priority: string): string {
+function getPriorityColor(priority: string, colors: any): string {
     switch (priority) {
-        case 'high': return COLORS.light.error;
-        case 'medium': return COLORS.light.warning;
-        case 'low': return COLORS.light.success;
-        default: return COLORS.light.textMuted;
+        case 'high': return colors.error;
+        case 'medium': return colors.warning;
+        case 'low': return colors.success;
+        default: return colors.textMuted;
     }
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.light.background,
     },
     scrollView: {
         flex: 1,
@@ -221,38 +233,64 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 24,
+        marginBottom: 20,
     },
     greeting: {
         fontSize: 14,
-        color: COLORS.light.textSecondary,
+        fontWeight: '500',
     },
     title: {
         fontSize: 28,
         fontWeight: '800',
-        color: COLORS.light.text,
     },
     streakBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 20,
         gap: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 1,
     },
     streakText: {
         fontSize: 16,
         fontWeight: '700',
-        color: COLORS.light.textMuted,
     },
-    streakActive: {
-        color: '#f59e0b',
+    quickActionsScroll: {
+        marginBottom: 24,
+        marginHorizontal: -20,
+    },
+    quickActionsContent: {
+        paddingHorizontal: 20,
+        gap: 12,
+    },
+    quickAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 16,
+        gap: 8,
+        minWidth: 110,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    quickActionIcon: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    quickActionText: {
+        fontSize: 14,
+        fontWeight: '600',
     },
     statsRow: {
         flexDirection: 'row',
@@ -261,25 +299,23 @@ const styles = StyleSheet.create({
     },
     statCard: {
         flex: 1,
-        backgroundColor: COLORS.light.surface,
         padding: 16,
-        borderRadius: 16,
+        borderRadius: 20,
         alignItems: 'center',
         gap: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowRadius: 8,
         elevation: 2,
     },
     statValue: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: '700',
-        color: COLORS.light.text,
     },
     statLabel: {
-        fontSize: 12,
-        color: COLORS.light.textSecondary,
+        fontSize: 11,
+        fontWeight: '500',
     },
     section: {
         marginBottom: 24,
@@ -293,21 +329,23 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: COLORS.light.text,
     },
     seeAll: {
         fontSize: 14,
-        color: COLORS.light.primary,
         fontWeight: '600',
     },
     taskItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         padding: 16,
-        borderRadius: 12,
-        marginBottom: 8,
+        borderRadius: 16,
+        marginBottom: 10,
         gap: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        elevation: 1,
     },
     priorityDot: {
         width: 8,
@@ -317,16 +355,20 @@ const styles = StyleSheet.create({
     taskText: {
         flex: 1,
         fontSize: 15,
-        color: COLORS.light.text,
+        fontWeight: '500',
     },
     examCard: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         padding: 16,
-        borderRadius: 12,
-        marginBottom: 8,
+        borderRadius: 16,
+        marginBottom: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        elevation: 1,
     },
     examInfo: {
         flex: 1,
@@ -334,36 +376,35 @@ const styles = StyleSheet.create({
     examSubject: {
         fontSize: 16,
         fontWeight: '600',
-        color: COLORS.light.text,
     },
     examDate: {
         fontSize: 13,
-        color: COLORS.light.textSecondary,
         marginTop: 2,
     },
     examCountdown: {
         alignItems: 'center',
-        backgroundColor: COLORS.light.primary + '15',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 12,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 10,
     },
     countdownNumber: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '700',
-        color: COLORS.light.primary,
     },
     countdownLabel: {
-        fontSize: 11,
-        color: COLORS.light.primary,
+        fontSize: 10,
     },
     noteItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         padding: 16,
-        borderRadius: 12,
-        marginBottom: 8,
+        borderRadius: 16,
+        marginBottom: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        elevation: 1,
     },
     noteInfo: {
         flex: 1,
@@ -371,11 +412,9 @@ const styles = StyleSheet.create({
     noteTitle: {
         fontSize: 15,
         fontWeight: '600',
-        color: COLORS.light.text,
     },
     noteSubject: {
         fontSize: 12,
-        color: COLORS.light.textSecondary,
         marginTop: 2,
     },
     emptyState: {
@@ -385,28 +424,5 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 14,
-        color: COLORS.light.textSecondary,
-    },
-    aiCta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.light.primary,
-        padding: 20,
-        borderRadius: 16,
-        gap: 16,
-        marginTop: 8,
-    },
-    aiCtaText: {
-        flex: 1,
-    },
-    aiCtaTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    aiCtaSubtitle: {
-        fontSize: 13,
-        color: 'rgba(255,255,255,0.8)',
-        marginTop: 2,
     },
 });

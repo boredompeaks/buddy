@@ -1,14 +1,15 @@
 // Profile Tab Screen
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Moon, Bell, FileJson, Key, Info, ChevronRight, Flame } from 'lucide-react-native';
 import { useSettingsStore, useStreakStore, useNotesStore } from '../../src/stores';
-import { COLORS } from '../../src/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 import APIKeysModal from '../modals/api-keys';
 import * as Clipboard from 'expo-clipboard';
 
 export default function ProfileScreen() {
+    const colors = useThemeColors();
     const settings = useSettingsStore(state => state.settings);
     const updateSettings = useSettingsStore(state => state.updateSettings);
     const streak = useStreakStore(state => state.streak);
@@ -59,67 +60,68 @@ export default function ProfileScreen() {
     }, [notes]);
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+            <StatusBar barStyle={colors.text === '#1e293b' ? 'dark-content' : 'light-content'} />
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={styles.title}>Profile</Text>
+                    <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
                 </View>
 
                 {/* User Card */}
-                <View style={styles.userCard}>
-                    <View style={styles.avatar}>
-                        <User size={32} color={COLORS.light.primary} />
+                <View style={[styles.userCard, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.avatar, { backgroundColor: colors.primary + '20' }]}>
+                        <User size={32} color={colors.primary} />
                     </View>
                     <View style={styles.userInfo}>
-                        <Text style={styles.userName}>Student</Text>
-                        <Text style={styles.userSubtitle}>{notes.length} notes created</Text>
+                        <Text style={[styles.userName, { color: colors.text }]}>Student</Text>
+                        <Text style={[styles.userSubtitle, { color: colors.textSecondary }]}>{notes.length} notes created</Text>
                     </View>
                 </View>
 
                 {/* Stats */}
                 <View style={styles.statsRow}>
-                    <View style={styles.statCard}>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
                         <Flame size={24} color="#f59e0b" />
-                        <Text style={styles.statValue}>{streak.currentStreak}</Text>
-                        <Text style={styles.statLabel}>Day Streak</Text>
+                        <Text style={[styles.statValue, { color: colors.text }]}>{streak.currentStreak}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Day Streak</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Flame size={24} color={COLORS.light.primary} />
-                        <Text style={styles.statValue}>{streak.longestStreak}</Text>
-                        <Text style={styles.statLabel}>Best Streak</Text>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                        <Flame size={24} color={colors.primary} />
+                        <Text style={[styles.statValue, { color: colors.text }]}>{streak.longestStreak}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Best Streak</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statValue}>{streak.studyDays.length}</Text>
-                        <Text style={styles.statLabel}>Study Days</Text>
+                    <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                        <Text style={[styles.statValue, { color: colors.text }]}>{streak.studyDays.length}</Text>
+                        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Study Days</Text>
                     </View>
                 </View>
 
                 {/* Menu */}
                 <View style={styles.menuSection}>
-                    <Text style={styles.sectionTitle}>Settings</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Settings</Text>
                     {menuItems.map((item) => {
                         const Icon = item.icon;
                         return (
                             <TouchableOpacity
                                 key={item.id}
-                                style={styles.menuItem}
+                                style={[styles.menuItem, { backgroundColor: colors.surface }]}
                                 onPress={() => item.type === 'link' && handleMenuPress(item.id)}
                                 disabled={item.type === 'toggle'}
                             >
-                                <View style={styles.menuIcon}>
-                                    <Icon size={20} color={COLORS.light.textSecondary} />
+                                <View style={[styles.menuIcon, { backgroundColor: colors.surfaceVariant }]}>
+                                    <Icon size={20} color={colors.textSecondary} />
                                 </View>
-                                <Text style={styles.menuTitle}>{item.title}</Text>
+                                <Text style={[styles.menuTitle, { color: colors.text }]}>{item.title}</Text>
                                 {item.type === 'toggle' ? (
                                     <Switch
                                         value={item.value}
                                         onValueChange={(v) => handleToggle(item.id, v)}
-                                        trackColor={{ false: COLORS.light.border, true: COLORS.light.primary + '50' }}
-                                        thumbColor={item.value ? COLORS.light.primary : COLORS.light.surface}
+                                        trackColor={{ false: colors.border, true: colors.primary + '50' }}
+                                        thumbColor={item.value ? colors.primary : colors.surface}
                                     />
                                 ) : (
-                                    <ChevronRight size={20} color={COLORS.light.textMuted} />
+                                    <ChevronRight size={20} color={colors.textMuted} />
                                 )}
                             </TouchableOpacity>
                         );
@@ -127,7 +129,7 @@ export default function ProfileScreen() {
                 </View>
 
                 {/* Version */}
-                <Text style={styles.version}>MindVault v1.0.0</Text>
+                <Text style={[styles.version, { color: colors.textMuted }]}>MindVault v1.0.0</Text>
             </ScrollView>
 
             {/* API Keys Modal */}
@@ -140,60 +142,70 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
+    container: { flex: 1 },
     content: { padding: 20 },
     header: { marginBottom: 20 },
-    title: { fontSize: 28, fontWeight: '800', color: COLORS.light.text },
+    title: { fontSize: 28, fontWeight: '800' },
     userCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         padding: 20,
         borderRadius: 20,
         marginBottom: 20,
         gap: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     avatar: {
         width: 64,
         height: 64,
         borderRadius: 32,
-        backgroundColor: COLORS.light.primary + '20',
         justifyContent: 'center',
         alignItems: 'center',
     },
     userInfo: { flex: 1 },
-    userName: { fontSize: 20, fontWeight: '700', color: COLORS.light.text },
-    userSubtitle: { fontSize: 14, color: COLORS.light.textSecondary, marginTop: 2 },
+    userName: { fontSize: 20, fontWeight: '700' },
+    userSubtitle: { fontSize: 14, marginTop: 2 },
     statsRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
     statCard: {
         flex: 1,
-        backgroundColor: COLORS.light.surface,
         padding: 16,
         borderRadius: 16,
         alignItems: 'center',
         gap: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
-    statValue: { fontSize: 22, fontWeight: '700', color: COLORS.light.text },
-    statLabel: { fontSize: 11, color: COLORS.light.textSecondary },
+    statValue: { fontSize: 22, fontWeight: '700' },
+    statLabel: { fontSize: 11 },
     menuSection: { marginBottom: 20 },
-    sectionTitle: { fontSize: 16, fontWeight: '600', color: COLORS.light.textSecondary, marginBottom: 12 },
+    sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12 },
     menuItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         padding: 16,
         borderRadius: 12,
         marginBottom: 8,
         gap: 12,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.03,
+        shadowRadius: 4,
+        elevation: 1,
     },
     menuIcon: {
         width: 40,
         height: 40,
         borderRadius: 10,
-        backgroundColor: COLORS.light.surfaceVariant,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    menuTitle: { flex: 1, fontSize: 16, color: COLORS.light.text },
-    version: { textAlign: 'center', fontSize: 12, color: COLORS.light.textMuted, marginTop: 20 },
+    menuTitle: { flex: 1, fontSize: 16 },
+    version: { textAlign: 'center', fontSize: 12, marginTop: 20 },
 });

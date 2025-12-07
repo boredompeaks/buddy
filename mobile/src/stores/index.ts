@@ -5,6 +5,7 @@ import * as db from '../services/database';
 import { STORAGE_KEYS } from '../constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { format, isToday, isYesterday, parseISO, differenceInDays } from 'date-fns';
+import * as Crypto from 'expo-crypto';
 
 // ================== NOTES STORE ==================
 interface NotesState {
@@ -44,7 +45,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
     addNote: async (partial) => {
         const note: Note = {
-            id: crypto.randomUUID(),
+            id: Crypto.randomUUID(),
             title: partial.title || 'Untitled Note',
             content: partial.content || '',
             subject: partial.subject || 'General',
@@ -110,7 +111,7 @@ export const useTasksStore = create<TasksState>((set, get) => ({
 
     addTask: async (partial) => {
         const task: Task = {
-            id: crypto.randomUUID(),
+            id: Crypto.randomUUID(),
             text: partial.text || '',
             completed: false,
             category: partial.category || get().activeCategory,
@@ -178,7 +179,7 @@ export const useExamStore = create<ExamState>((set) => ({
 
     addExam: async (partial) => {
         const exam: ExamSchedule = {
-            id: crypto.randomUUID(),
+            id: Crypto.randomUUID(),
             subjectName: partial.subjectName || '',
             examDate: partial.examDate || Date.now(),
             chapters: partial.chapters || [],

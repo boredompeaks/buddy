@@ -1,21 +1,24 @@
 // Notes Tab Screen
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
-import { useState, useMemo } from 'react';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity, TextInput, Pressable } from 'react-native';
+import { useState, useMemo, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Plus, Search, FolderOpen, Star, X } from 'lucide-react-native';
 import { useNotesStore } from '../../src/stores';
-import { COLORS, SUBJECTS } from '../../src/constants';
+import { useThemeColors } from '../../hooks/useThemeColors';
 import { format } from 'date-fns';
 
 export default function NotesScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
     const notes = useNotesStore(state => state.notes);
     const searchQuery = useNotesStore(state => state.searchQuery);
     const setSearchQuery = useNotesStore(state => state.setSearchQuery);
     const selectedSubject = useNotesStore(state => state.selectedSubject);
     const setSelectedSubject = useNotesStore(state => state.setSelectedSubject);
     const addNote = useNotesStore(state => state.addNote);
+
+    const searchInputRef = useRef<TextInput>(null);
 
     const filteredNotes = useMemo(() => {
         let result = notes;
@@ -42,36 +45,48 @@ export default function NotesScreen() {
     }, [notes]);
 
     const handleCreateNote = async () => {
-        const note = await addNote({ title: 'Untitled Note', subject: selectedSubject || 'General' });
-        router.push(`/note/${note.id}`);
+        try {
+            const note = await addNote({ title: 'Untitled Note', subject: selectedSubject || 'General' });
+            router.push(`/note/${note.id}`);
+        } catch (error) {
+            console.error("Failed to create note:", error);
+            // Optionally show an alert here
+        }
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.title}>Notes</Text>
-                <TouchableOpacity style={styles.addButton} onPress={handleCreateNote}>
+                <Text style={[styles.title, { color: colors.text }]}>Notes</Text>
+                <TouchableOpacity 
+                    style={[styles.addButton, { backgroundColor: colors.primary }]} 
+                    onPress={handleCreateNote}
+                >
                     <Plus size={24} color="#fff" />
                 </TouchableOpacity>
             </View>
 
             {/* Search */}
-            <View style={styles.searchContainer}>
-                <Search size={20} color={COLORS.light.textMuted} />
+            <Pressable 
+                style={[styles.searchContainer, { backgroundColor: colors.surface }]}
+                onPress={() => searchInputRef.current?.focus()}
+            >
+                <Search size={20} color={colors.textMuted} />
                 <TextInput
-                    style={styles.searchInput}
+                    ref={searchInputRef}
+                    style={[styles.searchInput, { color: colors.text }]}
                     placeholder="Search notes..."
-                    placeholderTextColor={COLORS.light.textMuted}
+                    placeholderTextColor={colors.textMuted}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <X size={18} color={COLORS.light.textMuted} />
+                        <X size={18} color={colors.textMuted} />
                     </TouchableOpacity>
                 )}
-            </View>
+            </Pressable>
 
             {/* Subject Filter */}
             <FlatList
@@ -83,10 +98,16 @@ export default function NotesScreen() {
                 contentContainerStyle={styles.filterContent}
                 renderItem={({ item }) => (
                     <TouchableOpacity
-                        style={[styles.filterChip, selectedSubject === item && styles.filterChipActive]}
+                        style={[
+                            styles.filterChip, 
+                            { backgroundColor: selectedSubject === item ? colors.primary : colors.surface }
+                        ]}
                         onPress={() => setSelectedSubject(item)}
                     >
-                        <Text style={[styles.filterText, selectedSubject === item && styles.filterTextActive]}>
+                        <Text style={[
+                            styles.filterText, 
+                            { color: selectedSubject === item ? '#fff' : colors.textSecondary }
+                        ]}>
                             {item || 'All'}
                         </Text>
                     </TouchableOpacity>
@@ -101,26 +122,26 @@ export default function NotesScreen() {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
-                        <FolderOpen size={48} color={COLORS.light.textMuted} />
-                        <Text style={styles.emptyTitle}>No notes yet</Text>
-                        <Text style={styles.emptySubtitle}>Tap + to create your first note</Text>
+                        <FolderOpen size={48} color={colors.textMuted} />
+                        <Text style={[styles.emptyTitle, { color: colors.text }]}>No notes yet</Text>
+                        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>Tap + to create your first note</Text>
                     </View>
                 }
                 renderItem={({ item }) => (
                     <TouchableOpacity
-                        style={styles.noteCard}
+                        style={[styles.noteCard, { backgroundColor: colors.surface }]}
                         onPress={() => router.push(`/note/${item.id}`)}
                     >
                         <View style={styles.noteHeader}>
-                            <Text style={styles.noteTitle} numberOfLines={1}>{item.title}</Text>
+                            <Text style={[styles.noteTitle, { color: colors.text }]} numberOfLines={1}>{item.title}</Text>
                             {item.isFavorite && <Star size={16} color="#f59e0b" fill="#f59e0b" />}
                         </View>
-                        <Text style={styles.notePreview} numberOfLines={2}>
+                        <Text style={[styles.notePreview, { color: colors.textSecondary }]} numberOfLines={2}>
                             {item.content || 'Empty note'}
                         </Text>
                         <View style={styles.noteMeta}>
-                            <Text style={styles.noteSubject}>{item.subject}</Text>
-                            <Text style={styles.noteDate}>{format(item.updatedAt, 'MMM d')}</Text>
+                            <Text style={[styles.noteSubject, { color: colors.primary, backgroundColor: colors.primary + '15' }]}>{item.subject}</Text>
+                            <Text style={[styles.noteDate, { color: colors.textMuted }]}>{format(item.updatedAt, 'MMM d')}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
@@ -130,7 +151,7 @@ export default function NotesScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -138,59 +159,62 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 16,
     },
-    title: { fontSize: 28, fontWeight: '800', color: COLORS.light.text },
+    title: { fontSize: 28, fontWeight: '800' },
     addButton: {
-        backgroundColor: COLORS.light.primary,
         width: 44,
         height: 44,
         borderRadius: 22,
         justifyContent: 'center',
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 4,
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         marginHorizontal: 20,
         paddingHorizontal: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         gap: 12,
+        height: 52,
     },
-    searchInput: { flex: 1, height: 48, fontSize: 16, color: COLORS.light.text },
-    filterList: { maxHeight: 44, marginTop: 12 },
+    searchInput: { flex: 1, fontSize: 16, height: '100%' },
+    filterList: { maxHeight: 50, marginTop: 16 },
     filterContent: { paddingHorizontal: 20, gap: 8 },
     filterChip: {
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        backgroundColor: COLORS.light.surface,
+        paddingVertical: 10,
         borderRadius: 20,
         marginRight: 8,
     },
-    filterChipActive: { backgroundColor: COLORS.light.primary },
-    filterText: { fontSize: 14, color: COLORS.light.textSecondary, fontWeight: '500' },
-    filterTextActive: { color: '#fff' },
+    filterText: { fontSize: 14, fontWeight: '600' },
     listContent: { padding: 20, paddingTop: 16 },
     noteCard: {
-        backgroundColor: COLORS.light.surface,
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
+        padding: 20,
+        borderRadius: 20,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
-    noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    noteTitle: { fontSize: 17, fontWeight: '600', color: COLORS.light.text, flex: 1 },
-    notePreview: { fontSize: 14, color: COLORS.light.textSecondary, marginTop: 8, lineHeight: 20 },
-    noteMeta: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
+    noteHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+    noteTitle: { fontSize: 18, fontWeight: '700', flex: 1 },
+    notePreview: { fontSize: 15, lineHeight: 22, marginBottom: 16 },
+    noteMeta: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     noteSubject: {
         fontSize: 12,
-        color: COLORS.light.primary,
-        backgroundColor: COLORS.light.primary + '15',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 8,
-        fontWeight: '500',
+        fontWeight: '600',
     },
-    noteDate: { fontSize: 12, color: COLORS.light.textMuted },
-    emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },
-    emptyTitle: { fontSize: 18, fontWeight: '600', color: COLORS.light.text },
-    emptySubtitle: { fontSize: 14, color: COLORS.light.textSecondary },
+    noteDate: { fontSize: 12, fontWeight: '500' },
+    emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
+    emptyTitle: { fontSize: 20, fontWeight: '700' },
+    emptySubtitle: { fontSize: 16 },
 });

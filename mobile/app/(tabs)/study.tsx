@@ -1,16 +1,15 @@
 // Study Hub Tab Screen
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Brain, FileQuestion, FileText, BarChart3, Sparkles, ChevronRight, Camera, Edit3 } from 'lucide-react-native';
-import { COLORS } from '../../src/constants';
+import { Brain, FileQuestion, FileText, BarChart3, Sparkles, ChevronRight, Camera, Edit3, GraduationCap } from 'lucide-react-native';
 import { useMemo } from 'react';
-
-// Import stores for real stats
 import { useNotesStore } from '../../src/stores';
+import { useThemeColors } from '../../hooks/useThemeColors';
 
 export default function StudyScreen() {
     const router = useRouter();
+    const colors = useThemeColors();
 
     // Get real data for stats
     const notes = useNotesStore(state => state.notes);
@@ -18,7 +17,6 @@ export default function StudyScreen() {
     // Calculate stats from stored data
     const stats = useMemo(() => {
         // These would ideally come from proper tracking stores
-        // For now, derive what we can from available data
         return {
             cardsReviewed: 0, // Would come from flashcard sessions
             quizzesTaken: 0,  // Would come from quiz sessions
@@ -32,7 +30,7 @@ export default function StudyScreen() {
             title: 'Flashcards',
             description: 'Review with spaced repetition',
             icon: Brain,
-            color: COLORS.light.primary,
+            color: colors.primary,
             route: '/(tabs)/study/flashcards',
         },
         {
@@ -40,7 +38,7 @@ export default function StudyScreen() {
             title: 'Quiz Mode',
             description: 'Test your knowledge',
             icon: FileQuestion,
-            color: COLORS.light.secondary,
+            color: colors.secondary,
             route: '/(tabs)/study/quiz',
         },
         {
@@ -48,15 +46,15 @@ export default function StudyScreen() {
             title: 'Practice Papers',
             description: 'Generate exam papers',
             icon: FileText,
-            color: COLORS.light.accent,
-            route: '/(tabs)/study/paper-generator', // Fixed: was /modals/paper-generator
+            color: colors.accent,
+            route: '/(tabs)/study/paper-generator',
         },
         {
             id: 'analytics',
             title: 'Analytics',
             description: 'Track your progress',
             icon: BarChart3,
-            color: '#10b981',
+            color: '#10b981', // Keep generic green or map to theme success
             route: '/(tabs)/study/analytics',
         },
     ];
@@ -80,12 +78,13 @@ export default function StudyScreen() {
     ];
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+            <StatusBar barStyle={colors.text === '#1e293b' ? 'dark-content' : 'light-content'} />
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={styles.title}>Study Hub</Text>
-                    <Text style={styles.subtitle}>Choose how you want to study</Text>
+                    <Text style={[styles.title, { color: colors.text }]}>Study Hub</Text>
+                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Choose how you want to study</Text>
                 </View>
 
                 {/* Study Options */}
@@ -95,56 +94,56 @@ export default function StudyScreen() {
                         return (
                             <TouchableOpacity
                                 key={option.id}
-                                style={styles.optionCard}
+                                style={[styles.optionCard, { backgroundColor: colors.surface }]}
                                 onPress={() => router.push(option.route as any)}
                             >
                                 <View style={[styles.iconContainer, { backgroundColor: option.color + '20' }]}>
                                     <Icon size={28} color={option.color} />
                                 </View>
-                                <Text style={styles.optionTitle}>{option.title}</Text>
-                                <Text style={styles.optionDescription}>{option.description}</Text>
+                                <Text style={[styles.optionTitle, { color: colors.text }]}>{option.title}</Text>
+                                <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>{option.description}</Text>
                             </TouchableOpacity>
                         );
                     })}
                 </View>
 
                 {/* Advanced Tools Section */}
-                <Text style={styles.sectionTitle}>AI Tools</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>AI Tools</Text>
                 {advancedTools.map((tool) => {
                     const Icon = tool.icon;
                     return (
                         <TouchableOpacity
                             key={tool.id}
-                            style={styles.toolCard}
+                            style={[styles.toolCard, { backgroundColor: colors.surface }]}
                             onPress={() => router.push(tool.route as any)}
                         >
-                            <View style={[styles.toolIcon, { backgroundColor: COLORS.light.primary + '20' }]}>
-                                <Icon size={24} color={COLORS.light.primary} />
+                            <View style={[styles.toolIcon, { backgroundColor: colors.primary + '20' }]}>
+                                <Icon size={24} color={colors.primary} />
                             </View>
                             <View style={styles.toolContent}>
-                                <Text style={styles.toolTitle}>{tool.title}</Text>
-                                <Text style={styles.toolDescription}>{tool.description}</Text>
+                                <Text style={[styles.toolTitle, { color: colors.text }]}>{tool.title}</Text>
+                                <Text style={[styles.toolDescription, { color: colors.textSecondary }]}>{tool.description}</Text>
                             </View>
-                            <ChevronRight size={20} color={COLORS.light.textMuted} />
+                            <ChevronRight size={20} color={colors.textMuted} />
                         </TouchableOpacity>
                     );
                 })}
 
                 {/* Quick Stats */}
                 <View style={styles.statsSection}>
-                    <Text style={styles.sectionTitle}>Your Progress</Text>
+                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Progress</Text>
                     <View style={styles.statsRow}>
-                        <View style={styles.statCard}>
-                            <Text style={styles.statValue}>{notes.length}</Text>
-                            <Text style={styles.statLabel}>Notes Created</Text>
+                        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                            <Text style={[styles.statValue, { color: colors.primary }]}>{notes.length}</Text>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Notes Created</Text>
                         </View>
-                        <View style={styles.statCard}>
-                            <Text style={styles.statValue}>{stats.quizzesTaken}</Text>
-                            <Text style={styles.statLabel}>Quizzes Taken</Text>
+                        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.quizzesTaken}</Text>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Quizzes Taken</Text>
                         </View>
-                        <View style={styles.statCard}>
-                            <Text style={styles.statValue}>{stats.avgScore}%</Text>
-                            <Text style={styles.statLabel}>Avg Score</Text>
+                        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+                            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.avgScore}%</Text>
+                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg Score</Text>
                         </View>
                     </View>
                 </View>
@@ -154,86 +153,77 @@ export default function StudyScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
+    container: { flex: 1 },
     content: { padding: 20 },
     header: { marginBottom: 24 },
-    title: { fontSize: 28, fontWeight: '800', color: COLORS.light.text },
-    subtitle: { fontSize: 15, color: COLORS.light.textSecondary, marginTop: 4 },
+    title: { fontSize: 28, fontWeight: '800' },
+    subtitle: { fontSize: 15, marginTop: 4 },
     optionsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 12,
-        marginBottom: 20,
+        marginBottom: 24,
     },
     optionCard: {
-        width: '48%',
-        backgroundColor: COLORS.light.surface,
+        width: '48%', // Approx half with gap
         padding: 20,
-        borderRadius: 16,
+        borderRadius: 20,
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
+        marginBottom: 4, // Spacing for shadow
     },
     iconContainer: {
         width: 56,
         height: 56,
-        borderRadius: 16,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
     },
-    optionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.light.text, marginBottom: 4 },
-    optionDescription: { fontSize: 12, color: COLORS.light.textSecondary, textAlign: 'center' },
-    deepStudyCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
-        padding: 20,
-        borderRadius: 16,
-        marginBottom: 24,
-        gap: 16,
-        borderWidth: 2,
-        borderColor: COLORS.light.primary + '30',
-    },
-    deepStudyIcon: {
-        width: 56,
-        height: 56,
-        borderRadius: 16,
-        backgroundColor: COLORS.light.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    deepStudyContent: { flex: 1 },
-    deepStudyTitle: { fontSize: 17, fontWeight: '700', color: COLORS.light.text },
-    deepStudyDescription: { fontSize: 13, color: COLORS.light.textSecondary, marginTop: 4 },
-    // Tool card styles for Advanced Tools section
+    optionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
+    optionDescription: { fontSize: 12, textAlign: 'center', lineHeight: 16 },
+    // Tool card styles
     toolCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
         padding: 16,
-        borderRadius: 12,
-        marginBottom: 10,
-        gap: 14,
+        borderRadius: 16,
+        marginBottom: 12,
+        gap: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
     toolIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 12,
+        width: 48,
+        height: 48,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
     },
     toolContent: { flex: 1 },
-    toolTitle: { fontSize: 15, fontWeight: '600', color: COLORS.light.text },
-    toolDescription: { fontSize: 12, color: COLORS.light.textSecondary, marginTop: 2 },
-    statsSection: { marginTop: 8 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.light.text, marginBottom: 12 },
+    toolTitle: { fontSize: 16, fontWeight: '600' },
+    toolDescription: { fontSize: 13, marginTop: 2 },
+    statsSection: { marginTop: 12 },
+    sectionTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
     statsRow: { flexDirection: 'row', gap: 12 },
     statCard: {
         flex: 1,
-        backgroundColor: COLORS.light.surface,
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 16,
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 2,
     },
-    statValue: { fontSize: 24, fontWeight: '700', color: COLORS.light.primary },
-    statLabel: { fontSize: 11, color: COLORS.light.textSecondary, marginTop: 4, textAlign: 'center' },
+    statValue: { fontSize: 24, fontWeight: '700' },
+    statLabel: { fontSize: 11, marginTop: 4, textAlign: 'center', fontWeight: '500' },
 });

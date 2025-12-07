@@ -133,7 +133,7 @@ function validateFlashcard(obj: any): boolean {
 async function getGroqClient(): Promise<Groq> {
     if (groqClient) return groqClient;
 
-    const apiKey = await SecureStore.getItemAsync('groq_api_key');
+    const apiKey = await SecureStore.getItemAsync(STORAGE_KEYS.GROQ_API_KEY);
     if (!apiKey) {
         throw new Error('Groq API key not configured. Please add it in Settings.');
     }
@@ -145,7 +145,7 @@ async function getGroqClient(): Promise<Groq> {
 async function getGeminiClient(): Promise<GoogleGenerativeAI> {
     if (geminiClient) return geminiClient;
 
-    const apiKey = await SecureStore.getItemAsync('gemini_api_key');
+    const apiKey = await SecureStore.getItemAsync(STORAGE_KEYS.GEMINI_API_KEY);
     if (!apiKey) {
         throw new Error('Gemini API key not configured. Please add it in Settings.');
     }
@@ -470,8 +470,42 @@ Focus on weak areas and subjects with closer exam dates.`), 60000); // 60s for s
 }
 
 /**
- * Generate flashcards from content - uses Groq for speed
+ * Parse exam schedule from image - uses Gemini Flash
  */
+export async function parseExamSchedule(imageBase64: string): Promise<{ subject: string; date: number }[]> {
+    try {
+        const gemini = await getGeminiClient();
+        const model = gemini.getGenerativeModel({ model: AI_CONFIG.gemini.flashModel });
+
+        const result = await withTimeout(model.generateContent([
+            {
+                inlineData: {
+                    mimeType: 'image/jpeg',
+                    data: imageBase64.includes('base64,') ? imageBase64.split('base64,')[1] : imageBase64,
+                },
+            },
+            {
+                text: `Extract exam schedule from this image.
+                
+Return ONLY a valid JSON array of objects with "subject" (string) and "date" (timestamp in milliseconds).
+If the year is missing, assume current year.
+Format: [{"subject": "Math", "date": 1715644800000}]`,
+            },
+        ]), 30000); // 30s timeout
+
+        const text = result.response.text();
+        const parsed = extractJSON<{ subject: string; date: number }[]>(text, []);
+        
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            throw new Error('Could not extract valid exams from image.');
+        }
+
+        return parsed.filter(e => e.subject && e.date);
+    } catch (error) {
+        console.error('Exam parsing error:', error);
+        throw error;
+    }
+}
 export async function generateFlashcards(
     content: string,
     count: number = 20

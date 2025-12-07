@@ -1,5 +1,5 @@
 // AI Chat Modal - Doubt solving and study assistance
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,16 +21,27 @@ export default function AIChatModal() {
 
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
-    const handleSend = async () => {
-        if (!input.trim() || isLoading) return;
+    // Race condition prevention: track active requests count and latest request ID
+    const activeRequestsRef = useRef(0);
+    const latestRequestIdRef = useRef(0);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSend = useCallback(async () => {
+        const trimmedInput = input.trim();
+        if (!trimmedInput) return;
+
+        // Prevent double-tap while loading
+        if (activeRequestsRef.current > 0) return;
+
+        const requestId = ++latestRequestIdRef.current;
+        activeRequestsRef.current++;
 
         const userMessage: ChatMessage = {
-            id: Date.now().toString(),
+            id: `user-${Date.now()}-${requestId}`,
             role: 'user',
-            text: input.trim(),
+            text: trimmedInput,
             timestamp: Date.now(),
             noteId: noteId,
         };
@@ -45,27 +56,37 @@ export default function AIChatModal() {
                 note?.content
             );
 
-            const assistantMessage: ChatMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                text: response,
-                timestamp: Date.now(),
-                noteId: noteId,
-            };
-
-            setMessages(prev => [...prev, assistantMessage]);
+            // Only update if this is still the latest request
+            if (requestId === latestRequestIdRef.current) {
+                const assistantMessage: ChatMessage = {
+                    id: `assistant-${Date.now()}-${requestId}`,
+                    role: 'assistant',
+                    text: response || 'I received an empty response. Please try again.',
+                    timestamp: Date.now(),
+                    noteId: noteId,
+                };
+                setMessages(prev => [...prev, assistantMessage]);
+            }
         } catch (error) {
-            const errorMessage: ChatMessage = {
-                id: (Date.now() + 1).toString(),
-                role: 'assistant',
-                text: 'Sorry, I encountered an error. Please check your API key in Settings and try again.',
-                timestamp: Date.now(),
-            };
-            setMessages(prev => [...prev, errorMessage]);
+            // Only show error if this is still the latest request
+            if (requestId === latestRequestIdRef.current) {
+                const errorText = error instanceof Error ? error.message : 'Unknown error occurred';
+                const errorMessage: ChatMessage = {
+                    id: `error-${Date.now()}-${requestId}`,
+                    role: 'assistant',
+                    text: `Sorry, I encountered an error: ${errorText}. Please check your API key in Settings and try again.`,
+                    timestamp: Date.now(),
+                };
+                setMessages(prev => [...prev, errorMessage]);
+            }
         } finally {
-            setIsLoading(false);
+            activeRequestsRef.current--;
+            // Only disable loading when ALL requests are complete
+            if (activeRequestsRef.current === 0) {
+                setIsLoading(false);
+            }
         }
-    };
+    }, [input, messages, note?.content, noteId]);
 
     const handleCopy = async (text: string, id: string) => {
         await Clipboard.setStringAsync(text);

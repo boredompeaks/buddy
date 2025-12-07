@@ -10,6 +10,7 @@ import { format, isToday, isYesterday, parseISO, differenceInDays } from 'date-f
 interface NotesState {
     notes: Note[];
     isLoading: boolean;
+    error: string | null;
     searchQuery: string;
     selectedSubject: string | null;
 
@@ -20,22 +21,24 @@ interface NotesState {
     deleteNote: (id: string) => Promise<void>;
     setSearchQuery: (query: string) => void;
     setSelectedSubject: (subject: string | null) => void;
+    clearError: () => void;
 }
 
 export const useNotesStore = create<NotesState>((set, get) => ({
     notes: [],
     isLoading: false,
+    error: null,
     searchQuery: '',
     selectedSubject: null,
 
     loadNotes: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
             const notes = await db.getAllNotes();
             set({ notes, isLoading: false });
         } catch (error) {
             console.error('Failed to load notes:', error);
-            set({ isLoading: false });
+            set({ isLoading: false, error: 'Failed to load notes. Tap to retry.' });
         }
     },
 
@@ -72,6 +75,7 @@ export const useNotesStore = create<NotesState>((set, get) => ({
 
     setSearchQuery: (query) => set({ searchQuery: query }),
     setSelectedSubject: (subject) => set({ selectedSubject: subject }),
+    clearError: () => set({ error: null }),
 }));
 
 // ================== TASKS STORE ==================

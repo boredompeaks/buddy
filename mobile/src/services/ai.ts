@@ -8,6 +8,28 @@ import * as SecureStore from 'expo-secure-store';
 let groqClient: Groq | null = null;
 let geminiClient: GoogleGenerativeAI | null = null;
 
+// ================== TIMEOUT HELPER ==================
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
+
+class TimeoutError extends Error {
+    constructor(message = 'Request timed out') {
+        super(message);
+        this.name = 'TimeoutError';
+    }
+}
+
+/**
+ * Wraps a promise with a timeout. Rejects if the promise doesn't resolve within the specified time.
+ */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<T> {
+    return Promise.race([
+        promise,
+        new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new TimeoutError(`AI request timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+        }),
+    ]);
+}
+
 // ================== CLIENT INITIALIZATION ==================
 async function getGroqClient(): Promise<Groq> {
     if (groqClient) return groqClient;
@@ -49,7 +71,7 @@ export async function chatWithAI(
             ? `You are a helpful tutor. The student is studying the following notes:\n---\n${noteContent.substring(0, 8000)}\n---\nAnswer their questions based on these notes. Use markdown for formatting.`
             : 'You are a helpful study assistant. Answer clearly and use markdown for formatting.';
 
-        const response = await groq.chat.completions.create({
+        const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
             messages: [
                 { role: 'system', content: systemPrompt },
@@ -60,7 +82,7 @@ export async function chatWithAI(
             ],
             max_tokens: 2048,
             temperature: 0.7,
-        });
+        }));
 
         return response.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
     } catch (error) {
@@ -79,7 +101,7 @@ export async function generateQuiz(
     try {
         const groq = await getGroqClient();
 
-        const response = await groq.chat.completions.create({
+        const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
             messages: [
                 {
@@ -100,7 +122,7 @@ ${content.substring(0, 12000)}`,
             max_tokens: 4096,
             temperature: 0.5,
             response_format: { type: 'json_object' },
-        });
+        }), 60000); // 60s for quiz generation
 
         const text = response.choices[0]?.message?.content || '[]';
         const parsed = JSON.parse(text);
@@ -118,7 +140,7 @@ export async function generateSummary(content: string): Promise<string> {
     try {
         const groq = await getGroqClient();
 
-        const response = await groq.chat.completions.create({
+        const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
             messages: [
                 {
@@ -132,7 +154,7 @@ export async function generateSummary(content: string): Promise<string> {
             ],
             max_tokens: 1024,
             temperature: 0.5,
-        });
+        }));
 
         return response.choices[0]?.message?.content || 'Could not generate summary.';
     } catch (error) {
@@ -149,7 +171,7 @@ export async function classifySubject(content: string): Promise<string> {
         const groq = await getGroqClient();
         const subjects = ['Physics', 'Chemistry', 'Biology', 'Mathematics', 'History', 'Geography', 'English', 'Computer Science', 'Economics', 'General'];
 
-        const response = await groq.chat.completions.create({
+        const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
             messages: [
                 {
@@ -159,7 +181,7 @@ export async function classifySubject(content: string): Promise<string> {
             ],
             max_tokens: 20,
             temperature: 0,
-        });
+        }), 15000); // 15s for simple classification
 
         const result = response.choices[0]?.message?.content?.trim() || 'General';
         return subjects.find(s => s.toLowerCase() === result.toLowerCase()) || 'General';
@@ -179,7 +201,7 @@ export async function generateNotesFromPDF(pdfBase64: string): Promise<string> {
         const gemini = await getGeminiClient();
         const model = gemini.getGenerativeModel({ model: AI_CONFIG.gemini.flashModel });
 
-        const result = await model.generateContent([
+        const result = await withTimeout(model.generateContent([
             {
                 inlineData: {
                     mimeType: 'application/pdf',
@@ -197,7 +219,7 @@ Format requirements:
 5. Include a "Frequently Asked Questions" section
 6. Ensure 100% coverage of the material`,
             },
-        ]);
+        ]), 90000); // 90s for PDF synthesis
 
         return result.response.text() || 'Failed to generate notes.';
     } catch (error) {
@@ -217,7 +239,7 @@ export async function generateExamPaper(
         const gemini = await getGeminiClient();
         const model = gemini.getGenerativeModel({ model: AI_CONFIG.gemini.proModel });
 
-        const result = await model.generateContent(`Create a strictly formatted exam question paper.
+        const result = await withTimeout(model.generateContent(`Create a strictly formatted exam question paper.
 
 Subject: ${config.subject}
 Pattern: ${config.pattern}
@@ -232,7 +254,7 @@ Requirements:
 2. Include mark allocation for each question [2], [4] etc.
 3. Include an Answer Key at the end
 4. Use Markdown formatting
-5. Ensure questions test understanding, not just memorization`);
+5. Ensure questions test understanding, not just memorization`), 90000); // 90s for paper generation
 
         return result.response.text() || 'Failed to generate paper.';
     } catch (error) {
@@ -260,7 +282,7 @@ export async function gradeAnswerSheet(
             },
         }));
 
-        const result = await model.generateContent([
+        const result = await withTimeout(model.generateContent([
             ...imageParts,
             {
                 text: `You are a strict examiner. Grade the handwritten answers in the images.
@@ -277,7 +299,7 @@ OUTPUT FORMAT (Markdown):
 3. **Detailed Corrections**: For each wrong answer, explain WHY and what's missing
 4. **Areas for Improvement**: Bullet points`,
             },
-        ]);
+        ]), 120000); // 120s for grading with images
 
         return result.response.text() || 'Failed to grade answers.';
     } catch (error) {
@@ -304,7 +326,7 @@ export async function generateStudyPlan(
             chapters: e.chapters,
         }));
 
-        const result = await model.generateContent(`Create a daily study plan for the next 7 days.
+        const result = await withTimeout(model.generateContent(`Create a daily study plan for the next 7 days.
 
 Upcoming Exams:
 ${JSON.stringify(examInfo, null, 2)}
@@ -320,7 +342,7 @@ For each day, provide:
 - Topics to cover with time allocation
 - Priority reasoning
 
-Focus on weak areas and subjects with closer exam dates.`);
+Focus on weak areas and subjects with closer exam dates.`), 60000); // 60s for study plan
 
         return result.response.text() || 'Failed to generate study plan.';
     } catch (error) {
@@ -339,7 +361,7 @@ export async function generateFlashcards(
     try {
         const groq = await getGroqClient();
 
-        const response = await groq.chat.completions.create({
+        const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
             messages: [
                 {
@@ -360,7 +382,7 @@ ${content.substring(0, 10000)}`,
             max_tokens: 4096,
             temperature: 0.5,
             response_format: { type: 'json_object' },
-        });
+        }), 60000); // 60s for flashcard generation
 
         const text = response.choices[0]?.message?.content || '[]';
         const parsed = JSON.parse(text);

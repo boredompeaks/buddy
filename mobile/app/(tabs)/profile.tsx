@@ -1,15 +1,21 @@
 // Profile Tab Screen
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch } from 'react-native';
+import { useState, useCallback } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { User, Moon, Bell, FileJson, Key, Info, ChevronRight, Flame } from 'lucide-react-native';
 import { useSettingsStore, useStreakStore, useNotesStore } from '../../src/stores';
 import { COLORS } from '../../src/constants';
+import APIKeysModal from '../modals/api-keys';
+import * as Clipboard from 'expo-clipboard';
 
 export default function ProfileScreen() {
     const settings = useSettingsStore(state => state.settings);
     const updateSettings = useSettingsStore(state => state.updateSettings);
     const streak = useStreakStore(state => state.streak);
     const notes = useNotesStore(state => state.notes);
+
+    // Modal states
+    const [apiKeysVisible, setApiKeysVisible] = useState(false);
 
     const menuItems = [
         { id: 'theme', icon: Moon, title: 'Dark Mode', type: 'toggle', value: settings.theme === 'dark' },
@@ -26,6 +32,31 @@ export default function ProfileScreen() {
             updateSettings({ notificationsEnabled: value });
         }
     };
+
+    const handleMenuPress = useCallback(async (id: string) => {
+        switch (id) {
+            case 'apiKeys':
+                setApiKeysVisible(true);
+                break;
+            case 'export':
+                // Export notes as JSON to clipboard
+                try {
+                    const data = JSON.stringify({ notes, exportedAt: Date.now() }, null, 2);
+                    await Clipboard.setStringAsync(data);
+                    Alert.alert('Exported!', `${notes.length} notes copied to clipboard as JSON.`);
+                } catch (error) {
+                    Alert.alert('Export Failed', 'Could not export data.');
+                }
+                break;
+            case 'about':
+                Alert.alert(
+                    'MindVault',
+                    'Version 1.0.0\n\nAI-powered study assistant for focused learning.\n\n© 2024 MindVault',
+                    [{ text: 'OK' }]
+                );
+                break;
+        }
+    }, [notes]);
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -70,7 +101,12 @@ export default function ProfileScreen() {
                     {menuItems.map((item) => {
                         const Icon = item.icon;
                         return (
-                            <TouchableOpacity key={item.id} style={styles.menuItem}>
+                            <TouchableOpacity
+                                key={item.id}
+                                style={styles.menuItem}
+                                onPress={() => item.type === 'link' && handleMenuPress(item.id)}
+                                disabled={item.type === 'toggle'}
+                            >
                                 <View style={styles.menuIcon}>
                                     <Icon size={20} color={COLORS.light.textSecondary} />
                                 </View>
@@ -93,6 +129,12 @@ export default function ProfileScreen() {
                 {/* Version */}
                 <Text style={styles.version}>MindVault v1.0.0</Text>
             </ScrollView>
+
+            {/* API Keys Modal */}
+            <APIKeysModal
+                visible={apiKeysVisible}
+                onClose={() => setApiKeysVisible(false)}
+            />
         </SafeAreaView>
     );
 }

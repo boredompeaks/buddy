@@ -72,6 +72,8 @@ export const STORAGE_KEYS = {
     settings: 'mindvault_settings',
     streak: 'mindvault_streak',
     onboarded: 'mindvault_onboarded',
+    GROQ_API_KEY: 'groq_api_key',
+    GEMINI_API_KEY: 'gemini_api_key',
 };
 
 // Built-in Exam Patterns

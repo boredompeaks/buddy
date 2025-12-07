@@ -2,7 +2,7 @@
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { AI_CONFIG } from '../constants';
-import { QuizQuestion, ChatMessage } from '../types';
+import { QuizQuestion, ChatMessage, Flashcard } from '../types';
 import * as SecureStore from 'expo-secure-store';
 
 let groqClient: Groq | null = null;
@@ -28,6 +28,105 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number = DEFAULT_TIMEOUT
             setTimeout(() => reject(new TimeoutError(`AI request timed out after ${timeoutMs / 1000}s`)), timeoutMs);
         }),
     ]);
+}
+
+// ================== JSON EXTRACTION & VALIDATION ==================
+
+/**
+ * Extracts JSON from AI response text that may be wrapped in markdown code blocks.
+ * Handles common AI response patterns:
+ * - ```json ... ```
+ * - ```javascript ... ```
+ * - Preamble text like "Here is the JSON:" followed by JSON
+ * - Truncated JSON (attempts to repair by closing brackets)
+ */
+function extractJSON<T>(text: string, fallback: T): T {
+    if (!text || typeof text !== 'string') return fallback;
+
+    let cleaned = text.trim();
+
+    // Remove markdown code blocks
+    const codeBlockMatch = cleaned.match(/```(?:json|javascript|js)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch) {
+        cleaned = codeBlockMatch[1].trim();
+    }
+
+    // Find the first JSON array or object
+    const jsonStartMatch = cleaned.match(/[\[{]/);
+    if (jsonStartMatch && jsonStartMatch.index !== undefined) {
+        cleaned = cleaned.substring(jsonStartMatch.index);
+    }
+
+    // Try to parse as-is first
+    try {
+        return JSON.parse(cleaned) as T;
+    } catch (e) {
+        // Attempt to repair truncated JSON
+        const repairedJSON = repairTruncatedJSON(cleaned);
+        try {
+            return JSON.parse(repairedJSON) as T;
+        } catch (e2) {
+            console.warn('JSON extraction failed, using fallback:', text.substring(0, 100));
+            return fallback;
+        }
+    }
+}
+
+/**
+ * Attempts to repair truncated JSON by closing open brackets/braces
+ */
+function repairTruncatedJSON(json: string): string {
+    let repaired = json.trim();
+
+    // Remove trailing incomplete elements (e.g., trailing comma, incomplete key)
+    repaired = repaired.replace(/,\s*$/, '');
+    repaired = repaired.replace(/,\s*"[^"]*$/, '');
+
+    // Count open vs closed brackets/braces
+    const openBrackets = (repaired.match(/\[/g) || []).length;
+    const closeBrackets = (repaired.match(/\]/g) || []).length;
+    const openBraces = (repaired.match(/{/g) || []).length;
+    const closeBraces = (repaired.match(/}/g) || []).length;
+
+    // Close unclosed structures
+    for (let i = 0; i < openBraces - closeBraces; i++) {
+        repaired += '}';
+    }
+    for (let i = 0; i < openBrackets - closeBrackets; i++) {
+        repaired += ']';
+    }
+
+    return repaired;
+}
+
+/**
+ * Validates a quiz question object has the required fields
+ */
+function validateQuizQuestion(obj: any): obj is QuizQuestion {
+    return (
+        obj &&
+        typeof obj === 'object' &&
+        typeof obj.question === 'string' &&
+        Array.isArray(obj.options) &&
+        obj.options.length >= 2 &&
+        typeof obj.correctAnswer === 'number' &&
+        obj.correctAnswer >= 0 &&
+        obj.correctAnswer < obj.options.length
+    );
+}
+
+/**
+ * Validates a flashcard object has the required fields
+ */
+function validateFlashcard(obj: any): boolean {
+    return (
+        obj &&
+        typeof obj === 'object' &&
+        typeof obj.front === 'string' &&
+        obj.front.length > 0 &&
+        typeof obj.back === 'string' &&
+        obj.back.length > 0
+    );
 }
 
 // ================== CLIENT INITIALIZATION ==================
@@ -98,6 +197,14 @@ export async function generateQuiz(
     content: string,
     count: number = 10
 ): Promise<QuizQuestion[]> {
+    // Input validation
+    const safeCount = Math.max(1, Math.min(20, count)); // Cap at 1-20 questions
+    const safeContent = content?.substring(0, 12000) || '';
+
+    if (safeContent.length < 50) {
+        throw new Error('Content is too short to generate meaningful quiz questions.');
+    }
+
     try {
         const groq = await getGroqClient();
 
@@ -106,27 +213,38 @@ export async function generateQuiz(
             messages: [
                 {
                     role: 'system',
-                    content: 'You are an expert quiz generator. Create multiple choice questions from the given content. Return valid JSON only.',
+                    content: 'You are an expert quiz generator. Create multiple choice questions from the given content. Return ONLY valid JSON array.',
                 },
                 {
                     role: 'user',
-                    content: `Generate ${count} multiple choice quiz questions from this content. Each question should have 4 options, a correct answer index (0-3), and an explanation.
+                    content: `Generate ${safeCount} multiple choice quiz questions from this content. Each question MUST have 4 options, a correct answer index (0-3), and an explanation.
 
-Return ONLY valid JSON array in this format:
+Return ONLY a JSON array in this exact format (no markdown, no explanation):
 [{"question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": 0, "explanation": "...", "difficulty": "medium"}]
 
 Content:
-${content.substring(0, 12000)}`,
+${safeContent}`,
                 },
             ],
             max_tokens: 4096,
             temperature: 0.5,
-            response_format: { type: 'json_object' },
         }), 60000); // 60s for quiz generation
 
         const text = response.choices[0]?.message?.content || '[]';
-        const parsed = JSON.parse(text);
-        return Array.isArray(parsed) ? parsed : parsed.questions || [];
+
+        // Use extractJSON to handle markdown wrappers and truncated JSON
+        const parsed = extractJSON<any>(text, { questions: [] });
+        const rawQuestions = Array.isArray(parsed) ? parsed : parsed.questions || [];
+
+        // Validate and filter only well-formed questions
+        const validQuestions = rawQuestions.filter(validateQuizQuestion);
+
+        if (validQuestions.length === 0) {
+            console.warn('No valid quiz questions generated, raw response:', text.substring(0, 200));
+            throw new Error('AI returned invalid quiz format. Please try again.');
+        }
+
+        return validQuestions;
     } catch (error) {
         console.error('Quiz generation error:', error);
         throw error;
@@ -358,6 +476,14 @@ export async function generateFlashcards(
     content: string,
     count: number = 20
 ): Promise<{ front: string; back: string }[]> {
+    // Input validation
+    const safeCount = Math.max(1, Math.min(30, count)); // Cap at 1-30 cards
+    const safeContent = content?.substring(0, 10000) || '';
+
+    if (safeContent.length < 50) {
+        throw new Error('Content is too short to generate meaningful flashcards.');
+    }
+
     try {
         const groq = await getGroqClient();
 
@@ -366,27 +492,38 @@ export async function generateFlashcards(
             messages: [
                 {
                     role: 'system',
-                    content: 'Generate flashcards for studying. Return valid JSON only.',
+                    content: 'Generate flashcards for studying. Return ONLY valid JSON array.',
                 },
                 {
                     role: 'user',
-                    content: `Generate ${count} flashcards from this content. Each card has a question (front) and answer (back).
+                    content: `Generate ${safeCount} flashcards from this content. Each card has a question (front) and answer (back).
 
-Return ONLY valid JSON array:
+Return ONLY a JSON array in this exact format (no markdown, no explanation):
 [{"front": "Question?", "back": "Answer"}]
 
 Content:
-${content.substring(0, 10000)}`,
+${safeContent}`,
                 },
             ],
             max_tokens: 4096,
             temperature: 0.5,
-            response_format: { type: 'json_object' },
         }), 60000); // 60s for flashcard generation
 
         const text = response.choices[0]?.message?.content || '[]';
-        const parsed = JSON.parse(text);
-        return Array.isArray(parsed) ? parsed : parsed.flashcards || [];
+
+        // Use extractJSON to handle markdown wrappers and truncated JSON
+        const parsed = extractJSON<any>(text, { flashcards: [] });
+        const rawCards = Array.isArray(parsed) ? parsed : parsed.flashcards || [];
+
+        // Validate and filter only well-formed flashcards
+        const validCards = rawCards.filter(validateFlashcard);
+
+        if (validCards.length === 0) {
+            console.warn('No valid flashcards generated, raw response:', text.substring(0, 200));
+            throw new Error('AI returned invalid flashcard format. Please try again.');
+        }
+
+        return validCards;
     } catch (error) {
         console.error('Flashcard generation error:', error);
         throw error;

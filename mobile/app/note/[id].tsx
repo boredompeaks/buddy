@@ -1,7 +1,7 @@
 // Note Editor Screen - Full note editing experience
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, BackHandler } from 'react-native';
+import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Save, Trash2, Star, Eye, Edit3, Sparkles, MoreVertical } from 'lucide-react-native';
 import { useNotesStore, useStreakStore } from '../../src/stores';
@@ -26,33 +26,104 @@ export default function NoteEditorScreen() {
     const [viewMode, setViewMode] = useState<'edit' | 'preview' | 'split'>('edit');
     const [hasChanges, setHasChanges] = useState(false);
 
+    // Refs for flush-on-unmount (prevents data loss on quick back)
+    const pendingStateRef = useRef({ title: '', content: '', subject: '', isFavorite: false });
+    const hasChangesRef = useRef(false);
+    const isSavingRef = useRef(false);
+
     useEffect(() => {
         if (note) {
             setTitle(note.title);
             setContent(note.content);
             setSubject(note.subject);
             setIsFavorite(note.isFavorite);
+            // Reset refs
+            pendingStateRef.current = { title: note.title, content: note.content, subject: note.subject, isFavorite: note.isFavorite };
+            hasChangesRef.current = false;
         }
     }, [note?.id]);
+
+    // Sync state to refs for flush-on-unmount
+    useEffect(() => {
+        pendingStateRef.current = { title, content, subject, isFavorite };
+        hasChangesRef.current = hasChanges;
+    }, [title, content, subject, isFavorite, hasChanges]);
+
+    // CRITICAL: Flush pending changes on unmount (fixes data loss on quick back)
+    useEffect(() => {
+        return () => {
+            if (hasChangesRef.current && note && !isSavingRef.current) {
+                isSavingRef.current = true;
+                const { title, content, subject, isFavorite } = pendingStateRef.current;
+                // Fire-and-forget save (component is unmounting)
+                updateNote({
+                    ...note,
+                    title: title || 'Untitled',
+                    content,
+                    subject,
+                    isFavorite,
+                }).catch(err => console.warn('Flush save failed:', err));
+            }
+        };
+    }, [note, updateNote]);
 
     // Auto-save with debounce
     useEffect(() => {
         if (!note || !hasChanges) return;
 
         const timer = setTimeout(async () => {
+            isSavingRef.current = true;
+            try {
+                await updateNote({
+                    ...note,
+                    title,
+                    content,
+                    subject,
+                    isFavorite,
+                });
+                setHasChanges(false);
+                hasChangesRef.current = false;
+                recordStudyDay(); // Record activity
+            } finally {
+                isSavingRef.current = false;
+            }
+        }, 1500);
+
+        return () => clearTimeout(timer);
+    }, [title, content, subject, isFavorite, hasChanges, note, updateNote, recordStudyDay]);
+
+    // Handle hardware back button (Android)
+    useFocusEffect(
+        useCallback(() => {
+            const onBackPress = () => {
+                if (hasChangesRef.current && !isSavingRef.current) {
+                    // Force save before navigating away
+                    handleManualSave();
+                }
+                return false; // Allow default back behavior
+            };
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
+        }, [])
+    );
+
+    const handleManualSave = useCallback(async () => {
+        if (!note || isSavingRef.current) return;
+        isSavingRef.current = true;
+        try {
             await updateNote({
                 ...note,
-                title,
+                title: title || 'Untitled',
                 content,
                 subject,
                 isFavorite,
             });
             setHasChanges(false);
-            recordStudyDay(); // Record activity
-        }, 1500);
-
-        return () => clearTimeout(timer);
-    }, [title, content, subject, isFavorite, hasChanges]);
+            hasChangesRef.current = false;
+        } finally {
+            isSavingRef.current = false;
+        }
+    }, [note, title, content, subject, isFavorite, updateNote]);
 
     const handleChange = useCallback((field: 'title' | 'content' | 'subject', value: string) => {
         if (field === 'title') setTitle(value);
@@ -68,8 +139,21 @@ export default function NoteEditorScreen() {
 
     const handleDelete = useCallback(async () => {
         if (!note) return;
-        await deleteNote(note.id);
-        router.back();
+        Alert.alert(
+            'Delete Note',
+            'Are you sure you want to delete this note? This action cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        await deleteNote(note.id);
+                        router.back();
+                    }
+                }
+            ]
+        );
     }, [note, deleteNote, router]);
 
     if (!note) {

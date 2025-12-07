@@ -237,7 +237,8 @@ export async function initDatabase(): Promise<void> {
       role TEXT NOT NULL,
       text TEXT NOT NULL,
       timestamp INTEGER NOT NULL,
-      noteId TEXT
+      noteId TEXT,
+      FOREIGN KEY (noteId) REFERENCES notes(id) ON DELETE CASCADE
     );
     
     CREATE INDEX IF NOT EXISTS idx_chat_note ON chat_messages(noteId);

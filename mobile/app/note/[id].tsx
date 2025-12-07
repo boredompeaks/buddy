@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Alert, BackHandler } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Save, Trash2, Star, Eye, Edit3, Sparkles, MoreVertical } from 'lucide-react-native';
+import { ArrowLeft, Trash2, Star, Eye, Edit3, Sparkles, MoreVertical } from 'lucide-react-native';
 import { useNotesStore, useStreakStore } from '../../src/stores';
 import { COLORS, SUBJECTS } from '../../src/constants';
 import Markdown from 'react-native-markdown-display';

@@ -6,11 +6,6 @@
     "moduleResolution": "bundler"
   },
   "exclude": [
-    "node_modules",
-    "**/__tests__/**",
-    "**/*.test.ts",
-    "**/*.test.tsx",
-    "jest.setup.js",
-    "jest.config.js"
+    "node_modules"
   ]
 }

@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Brain, FileQuestion, FileText, BarChart3, Sparkles, ChevronRight, Camera, Edit3, GraduationCap } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { useNotesStore } from '../../src/stores';
+import { useNotesStore, useStudyStatsStore } from '../../src/stores';
 import { useThemeColors } from '../../hooks/useThemeColors';
 
 export default function StudyScreen() {
@@ -13,16 +13,17 @@ export default function StudyScreen() {
 
     // Get real data for stats
     const notes = useNotesStore(state => state.notes);
+    const studyStats = useStudyStatsStore(state => state.stats);
+    const getAverageScore = useStudyStatsStore(state => state.getAverageScore);
 
-    // Calculate stats from stored data
+    // Calculate stats from stored data - NOW REAL
     const stats = useMemo(() => {
-        // These would ideally come from proper tracking stores
         return {
-            cardsReviewed: 0, // Would come from flashcard sessions
-            quizzesTaken: 0,  // Would come from quiz sessions
-            avgScore: 0,      // Would come from quiz sessions
+            cardsReviewed: studyStats.flashcardsReviewed,
+            quizzesTaken: studyStats.quizzesTaken,
+            avgScore: getAverageScore(),
         };
-    }, []);
+    }, [studyStats, getAverageScore]);
 
     const studyOptions = [
         {

@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TrendingUp, Target, Clock, Award, BookOpen, Brain, Calendar } from 'lucide-react-native';
 import { useNotesStore, useTasksStore, useExamStore, useStreakStore } from '../../../src/stores';
-import { COLORS, SUBJECTS } from '../../../src/constants';
+import { useThemeColors } from '../../../hooks/useThemeColors';
 import { format, subDays, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -16,18 +16,21 @@ interface StatCardProps {
     value: string | number;
     subtitle?: string;
     color: string;
+    bgColor: string;
+    textColor: string;
+    subtextColor: string;
 }
 
-function StatCard({ icon, label, value, subtitle, color }: StatCardProps) {
+function StatCard({ icon, label, value, subtitle, color, bgColor, textColor, subtextColor }: StatCardProps) {
     return (
-        <View style={[styles.statCard, { borderLeftColor: color }]}>
+        <View style={[styles.statCard, { backgroundColor: bgColor, borderLeftColor: color }]}>
             <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
                 {icon}
             </View>
             <View style={styles.statInfo}>
-                <Text style={styles.statLabel}>{label}</Text>
-                <Text style={styles.statValue}>{value}</Text>
-                {subtitle && <Text style={styles.statSubtitle}>{subtitle}</Text>}
+                <Text style={[styles.statLabel, { color: subtextColor }]}>{label}</Text>
+                <Text style={[styles.statValue, { color: textColor }]}>{value}</Text>
+                {subtitle && <Text style={[styles.statSubtitle, { color: subtextColor }]}>{subtitle}</Text>}
             </View>
         </View>
     );
@@ -38,17 +41,20 @@ interface ProgressBarProps {
     value: number;
     maxValue: number;
     color: string;
+    textColor: string;
+    subtextColor: string;
+    bgColor: string;
 }
 
-function ProgressBar({ label, value, maxValue, color }: ProgressBarProps) {
+function ProgressBar({ label, value, maxValue, color, textColor, subtextColor, bgColor }: ProgressBarProps) {
     const percentage = maxValue > 0 ? Math.min(100, Math.round((value / maxValue) * 100)) : 0;
     return (
         <View style={styles.progressItem}>
             <View style={styles.progressHeader}>
-                <Text style={styles.progressLabel}>{label}</Text>
-                <Text style={styles.progressValue}>{percentage}%</Text>
+                <Text style={[styles.progressLabel, { color: textColor }]}>{label}</Text>
+                <Text style={[styles.progressValue, { color: subtextColor }]}>{percentage}%</Text>
             </View>
-            <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarBg, { backgroundColor: bgColor }]}>
                 <View style={[styles.progressBarFill, { width: `${percentage}%`, backgroundColor: color }]} />
             </View>
         </View>
@@ -56,12 +62,14 @@ function ProgressBar({ label, value, maxValue, color }: ProgressBarProps) {
 }
 
 export default function AnalyticsScreen() {
+    const colors = useThemeColors();
+
     const notes = useNotesStore(state => state.notes);
     const tasks = useTasksStore(state => state.tasks);
     const exams = useExamStore(state => state.exams);
     const streak = useStreakStore(state => state.streak);
 
-    // Calculate analytics with memoization
+    // Calculate analytics with memoization - ALL REAL DATA
     const stats = useMemo(() => {
         const now = Date.now();
         const sevenDaysAgo = subDays(new Date(), 7);
@@ -119,75 +127,90 @@ export default function AnalyticsScreen() {
     }, [notes, tasks, exams, streak]);
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
             <Stack.Screen options={{ headerShown: false }} />
 
             {/* Header */}
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Analytics</Text>
-                <Text style={styles.headerSubtitle}>Track your study progress</Text>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>Analytics</Text>
+                <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>Track your study progress</Text>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
                 {/* Streak Section */}
-                <View style={styles.streakCard}>
+                <View style={[styles.streakCard, { backgroundColor: colors.warning + '20' }]}>
                     <View style={styles.streakMain}>
-                        <Award size={32} color="#f59e0b" />
+                        <Award size={32} color={colors.warning} />
                         <View style={styles.streakInfo}>
-                            <Text style={styles.streakValue}>{stats.currentStreak}</Text>
-                            <Text style={styles.streakLabel}>Day Streak</Text>
+                            <Text style={[styles.streakValue, { color: colors.text }]}>{stats.currentStreak}</Text>
+                            <Text style={[styles.streakLabel, { color: colors.textSecondary }]}>Day Streak</Text>
                         </View>
                     </View>
                     <View style={styles.streakBest}>
-                        <Text style={styles.streakBestLabel}>Best Streak</Text>
-                        <Text style={styles.streakBestValue}>{stats.longestStreak} days</Text>
+                        <Text style={[styles.streakBestLabel, { color: colors.textSecondary }]}>Best Streak</Text>
+                        <Text style={[styles.streakBestValue, { color: colors.text }]}>{stats.longestStreak} days</Text>
                     </View>
                 </View>
 
                 {/* Quick Stats */}
-                <Text style={styles.sectionTitle}>Overview</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Overview</Text>
                 <View style={styles.statsGrid}>
                     <StatCard
-                        icon={<BookOpen size={20} color={COLORS.light.primary} />}
+                        icon={<BookOpen size={20} color={colors.primary} />}
                         label="Total Notes"
                         value={stats.totalNotes}
                         subtitle={`${stats.recentNotes} this week`}
-                        color={COLORS.light.primary}
+                        color={colors.primary}
+                        bgColor={colors.surface}
+                        textColor={colors.text}
+                        subtextColor={colors.textSecondary}
                     />
                     <StatCard
-                        icon={<Target size={20} color={COLORS.light.success} />}
+                        icon={<Target size={20} color={colors.success} />}
                         label="Tasks Done"
                         value={`${stats.completedTasks}/${stats.totalTasks}`}
                         subtitle={`${stats.completionRate}% complete`}
-                        color={COLORS.light.success}
+                        color={colors.success}
+                        bgColor={colors.surface}
+                        textColor={colors.text}
+                        subtextColor={colors.textSecondary}
                     />
                     <StatCard
-                        icon={<Calendar size={20} color={COLORS.light.warning} />}
+                        icon={<Calendar size={20} color={colors.warning} />}
                         label="Upcoming Exams"
                         value={stats.upcomingExams}
                         subtitle={`${stats.avgSyllabusProgress}% prepared`}
-                        color={COLORS.light.warning}
+                        color={colors.warning}
+                        bgColor={colors.surface}
+                        textColor={colors.text}
+                        subtextColor={colors.textSecondary}
                     />
                     <StatCard
-                        icon={<Brain size={20} color={COLORS.light.secondary} />}
+                        icon={<Brain size={20} color={colors.secondary} />}
                         label="Words Written"
                         value={stats.totalWords >= 1000 ? `${(stats.totalWords / 1000).toFixed(1)}K` : stats.totalWords}
-                        color={COLORS.light.secondary}
+                        color={colors.secondary}
+                        bgColor={colors.surface}
+                        textColor={colors.text}
+                        subtextColor={colors.textSecondary}
                     />
                 </View>
 
                 {/* Subject Distribution */}
                 {stats.topSubjects.length > 0 && (
                     <>
-                        <Text style={styles.sectionTitle}>Subject Distribution</Text>
-                        <View style={styles.progressCard}>
+                        <Text style={[styles.sectionTitle, { color: colors.text }]}>Subject Distribution</Text>
+                        <View style={[styles.progressCard, { backgroundColor: colors.surface }]}>
                             {stats.topSubjects.map(([subject, count], index) => (
                                 <ProgressBar
                                     key={subject}
                                     label={subject}
                                     value={count}
                                     maxValue={stats.totalNotes}
-                                    color={['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e'][index] ?? COLORS.light.primary}
+                                    color={[colors.primary, colors.secondary, colors.accent, colors.warning, colors.success][index] ?? colors.primary}
+                                    textColor={colors.text}
+                                    subtextColor={colors.textSecondary}
+                                    bgColor={colors.border}
                                 />
                             ))}
                         </View>
@@ -195,42 +218,42 @@ export default function AnalyticsScreen() {
                 )}
 
                 {/* Insights */}
-                <Text style={styles.sectionTitle}>Insights</Text>
-                <View style={styles.insightsCard}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Insights</Text>
+                <View style={[styles.insightsCard, { backgroundColor: colors.surface }]}>
                     {stats.pendingHighPriority > 0 && (
                         <View style={styles.insightItem}>
-                            <View style={[styles.insightDot, { backgroundColor: COLORS.light.error }]} />
-                            <Text style={styles.insightText}>
+                            <View style={[styles.insightDot, { backgroundColor: colors.error }]} />
+                            <Text style={[styles.insightText, { color: colors.text }]}>
                                 {stats.pendingHighPriority} high-priority task{stats.pendingHighPriority > 1 ? 's' : ''} pending
                             </Text>
                         </View>
                     )}
                     {stats.upcomingExams > 0 && (
                         <View style={styles.insightItem}>
-                            <View style={[styles.insightDot, { backgroundColor: COLORS.light.warning }]} />
-                            <Text style={styles.insightText}>
+                            <View style={[styles.insightDot, { backgroundColor: colors.warning }]} />
+                            <Text style={[styles.insightText, { color: colors.text }]}>
                                 {stats.upcomingExams} exam{stats.upcomingExams > 1 ? 's' : ''} coming up
                             </Text>
                         </View>
                     )}
                     {stats.currentStreak >= 7 && (
                         <View style={styles.insightItem}>
-                            <View style={[styles.insightDot, { backgroundColor: COLORS.light.success }]} />
-                            <Text style={styles.insightText}>
+                            <View style={[styles.insightDot, { backgroundColor: colors.success }]} />
+                            <Text style={[styles.insightText, { color: colors.text }]}>
                                 Great job! You've maintained a {stats.currentStreak}-day streak!
                             </Text>
                         </View>
                     )}
                     {stats.favoriteNotes > 0 && (
                         <View style={styles.insightItem}>
-                            <View style={[styles.insightDot, { backgroundColor: COLORS.light.primary }]} />
-                            <Text style={styles.insightText}>
+                            <View style={[styles.insightDot, { backgroundColor: colors.primary }]} />
+                            <Text style={[styles.insightText, { color: colors.text }]}>
                                 {stats.favoriteNotes} favorite note{stats.favoriteNotes > 1 ? 's' : ''} for quick access
                             </Text>
                         </View>
                     )}
                     {stats.topSubjects.length === 0 && stats.pendingHighPriority === 0 && stats.upcomingExams === 0 && (
-                        <Text style={styles.noInsightsText}>
+                        <Text style={[styles.noInsightsText, { color: colors.textSecondary }]}>
                             Start adding notes and tasks to see personalized insights!
                         </Text>
                     )}
@@ -241,37 +264,37 @@ export default function AnalyticsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
+    container: { flex: 1 },
     header: { padding: 20, paddingBottom: 12 },
-    headerTitle: { fontSize: 28, fontWeight: '800', color: COLORS.light.text },
-    headerSubtitle: { fontSize: 14, color: COLORS.light.textSecondary, marginTop: 4 },
+    headerTitle: { fontSize: 28, fontWeight: '800' },
+    headerSubtitle: { fontSize: 14, marginTop: 4 },
     content: { padding: 20, paddingTop: 8 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.light.text, marginTop: 24, marginBottom: 12 },
-    streakCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fef3c7', padding: 20, borderRadius: 20 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', marginTop: 24, marginBottom: 12 },
+    streakCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderRadius: 20 },
     streakMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     streakInfo: {},
-    streakValue: { fontSize: 36, fontWeight: '800', color: '#92400e' },
-    streakLabel: { fontSize: 14, fontWeight: '600', color: '#a16207' },
+    streakValue: { fontSize: 36, fontWeight: '800' },
+    streakLabel: { fontSize: 14, fontWeight: '600' },
     streakBest: { alignItems: 'flex-end' },
-    streakBestLabel: { fontSize: 12, color: '#a16207' },
-    streakBestValue: { fontSize: 16, fontWeight: '700', color: '#92400e' },
+    streakBestLabel: { fontSize: 12 },
+    streakBestValue: { fontSize: 16, fontWeight: '700' },
     statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    statCard: { width: (SCREEN_WIDTH - 52) / 2, backgroundColor: COLORS.light.surface, padding: 16, borderRadius: 16, borderLeftWidth: 4, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    statCard: { width: (SCREEN_WIDTH - 52) / 2, padding: 16, borderRadius: 16, borderLeftWidth: 4, flexDirection: 'row', alignItems: 'center', gap: 12 },
     iconContainer: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
     statInfo: { flex: 1 },
-    statLabel: { fontSize: 12, color: COLORS.light.textSecondary, marginBottom: 2 },
-    statValue: { fontSize: 20, fontWeight: '700', color: COLORS.light.text },
-    statSubtitle: { fontSize: 11, color: COLORS.light.textMuted, marginTop: 2 },
-    progressCard: { backgroundColor: COLORS.light.surface, padding: 16, borderRadius: 16, gap: 16 },
+    statLabel: { fontSize: 12, marginBottom: 2 },
+    statValue: { fontSize: 20, fontWeight: '700' },
+    statSubtitle: { fontSize: 11, marginTop: 2 },
+    progressCard: { padding: 16, borderRadius: 16, gap: 16 },
     progressItem: {},
     progressHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-    progressLabel: { fontSize: 14, fontWeight: '500', color: COLORS.light.text },
-    progressValue: { fontSize: 13, fontWeight: '600', color: COLORS.light.textSecondary },
-    progressBarBg: { height: 8, backgroundColor: COLORS.light.border, borderRadius: 4 },
+    progressLabel: { fontSize: 14, fontWeight: '500' },
+    progressValue: { fontSize: 13, fontWeight: '600' },
+    progressBarBg: { height: 8, borderRadius: 4 },
     progressBarFill: { height: '100%', borderRadius: 4 },
-    insightsCard: { backgroundColor: COLORS.light.surface, padding: 16, borderRadius: 16, gap: 12 },
+    insightsCard: { padding: 16, borderRadius: 16, gap: 12 },
     insightItem: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     insightDot: { width: 8, height: 8, borderRadius: 4 },
-    insightText: { fontSize: 14, color: COLORS.light.text, flex: 1 },
-    noInsightsText: { fontSize: 14, color: COLORS.light.textSecondary, textAlign: 'center', padding: 12 },
+    insightText: { fontSize: 14, flex: 1 },
+    noInsightsText: { fontSize: 14, textAlign: 'center', padding: 12 },
 });

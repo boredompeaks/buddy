@@ -318,3 +318,85 @@ export const useStreakStore = create<StreakState>((set, get) => ({
         set({ streak: updated });
     },
 }));
+
+// ================== STUDY STATS STORE ==================
+interface StudyStatsData {
+    quizzesTaken: number;
+    quizzesCorrect: number;
+    flashcardsReviewed: number;
+    flashcardsCorrect: number;
+    totalStudyTime: number; // in minutes
+    lastQuizDate: string | null;
+}
+
+interface StudyStatsState {
+    stats: StudyStatsData;
+    isLoading: boolean;
+    loadStats: () => Promise<void>;
+    recordQuizResult: (total: number, correct: number) => Promise<void>;
+    recordFlashcardResult: (correct: boolean) => Promise<void>;
+    getAverageScore: () => number;
+}
+
+const defaultStudyStats: StudyStatsData = {
+    quizzesTaken: 0,
+    quizzesCorrect: 0,
+    flashcardsReviewed: 0,
+    flashcardsCorrect: 0,
+    totalStudyTime: 0,
+    lastQuizDate: null,
+};
+
+const STUDY_STATS_KEY = 'mindvault_study_stats';
+
+export const useStudyStatsStore = create<StudyStatsState>((set, get) => ({
+    stats: defaultStudyStats,
+    isLoading: false,
+
+    loadStats: async () => {
+        set({ isLoading: true });
+        try {
+            const saved = await AsyncStorage.getItem(STUDY_STATS_KEY);
+            if (saved) {
+                set({ stats: JSON.parse(saved), isLoading: false });
+            } else {
+                set({ isLoading: false });
+            }
+        } catch (error) {
+            console.error('Failed to load study stats:', error);
+            set({ isLoading: false });
+        }
+    },
+
+    recordQuizResult: async (total: number, correct: number) => {
+        const { stats } = get();
+        const updated: StudyStatsData = {
+            ...stats,
+            quizzesTaken: stats.quizzesTaken + 1,
+            quizzesCorrect: stats.quizzesCorrect + correct,
+            lastQuizDate: format(new Date(), 'yyyy-MM-dd'),
+        };
+        await AsyncStorage.setItem(STUDY_STATS_KEY, JSON.stringify(updated));
+        set({ stats: updated });
+    },
+
+    recordFlashcardResult: async (correct: boolean) => {
+        const { stats } = get();
+        const updated: StudyStatsData = {
+            ...stats,
+            flashcardsReviewed: stats.flashcardsReviewed + 1,
+            flashcardsCorrect: stats.flashcardsCorrect + (correct ? 1 : 0),
+        };
+        await AsyncStorage.setItem(STUDY_STATS_KEY, JSON.stringify(updated));
+        set({ stats: updated });
+    },
+
+    getAverageScore: () => {
+        const { stats } = get();
+        if (stats.quizzesTaken === 0) return 0;
+        // Calculate based on total questions answered (rough estimate: 10 per quiz)
+        const totalQuestions = stats.quizzesTaken * 10;
+        return Math.round((stats.quizzesCorrect / totalQuestions) * 100);
+    },
+}));
+

@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle2, XCircle, ChevronRight, Lightbulb, AlertTriangle, Trophy, RefreshCw, Check } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
-import { useNotesStore } from '../../../src/stores'; // Adjusted path
+import { useNotesStore, useStudyStatsStore } from '../../../src/stores'; // Adjusted path
 import { generateQuiz } from '../../../src/services/ai';
 import { useThemeColors } from '../../../hooks/useThemeColors'; // Adjusted path
 import { useResponsiveLayout } from '../../../src/hooks/useResponsiveLayout'; // Adjusted path
@@ -23,6 +23,7 @@ export default function QuizScreen() {
 
     const notes = useNotesStore(state => state.notes);
     const note = noteId ? notes.find(n => n.id === noteId) : null;
+    const recordQuizResult = useStudyStatsStore(state => state.recordQuizResult);
 
     const [quizState, setQuizState] = useState<QuizState>('config');
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -56,7 +57,7 @@ export default function QuizScreen() {
     };
 
     // Submit Quiz
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         // Calculate score
         let correctCount = 0;
         questions.forEach((q, index) => {
@@ -66,6 +67,9 @@ export default function QuizScreen() {
         });
         setScore(correctCount);
         setQuizState('results');
+
+        // Record quiz result for stats tracking
+        await recordQuizResult(questions.length, correctCount);
     };
 
     // Restart

@@ -24,7 +24,7 @@ export default function NotesScreen() {
             const createAndOpen = async () => {
                 const note = await useNotesStore.getState().addNote({ title: 'New Note', content: '', subject: 'General' });
                 router.setParams({ action: '' }); // Clear param
-                router.push({ pathname: '/(tabs)/notes/editor', params: { id: note.id } });
+                router.push({ pathname: '/note/[id]', params: { id: note.id } });
             };
             createAndOpen();
         }
@@ -69,7 +69,7 @@ export default function NotesScreen() {
     }, [notes]);
 
     const handleNotePress = (id: string) => {
-        router.push({ pathname: '/(tabs)/notes/editor', params: { id } });
+        router.push({ pathname: '/note/[id]', params: { id } });
     };
 
     const handleCreateNote = async () => {

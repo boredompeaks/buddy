@@ -6,7 +6,7 @@ import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDatabase } from '../src/services/database';
-import { useNotesStore, useTasksStore, useExamStore, useSettingsStore, useStreakStore } from '../src/stores';
+import { useNotesStore, useTasksStore, useExamStore, useSettingsStore, useStreakStore, useStudyStatsStore } from '../src/stores';
 import { COLORS } from '../src/constants';
 
 export default function RootLayout() {
@@ -16,6 +16,7 @@ export default function RootLayout() {
     const loadExams = useExamStore(state => state.loadExams);
     const loadSettings = useSettingsStore(state => state.loadSettings);
     const loadStreak = useStreakStore(state => state.loadStreak);
+    const loadStudyStats = useStudyStatsStore(state => state.loadStats);
     const theme = useSettingsStore(state => state.settings.theme);
 
     useEffect(() => {
@@ -24,13 +25,13 @@ export default function RootLayout() {
                 // Initialize database
                 await initDatabase();
 
-                // Load all data in parallel
                 await Promise.all([
                     loadNotes(),
                     loadTasks(),
                     loadExams(),
                     loadSettings(),
                     loadStreak(),
+                    loadStudyStats(),
                 ]);
 
                 setIsReady(true);

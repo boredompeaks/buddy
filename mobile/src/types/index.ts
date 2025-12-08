@@ -93,7 +93,7 @@ export interface QuizQuestion {
     options: string[];
     correctAnswer: number;
     explanation: string;
-    difficulty: 'easy' | 'medium' | 'hard';
+    difficulty: 'easy' | 'medium' | 'hard' | 'board';
 }
 
 export interface QuizSession {

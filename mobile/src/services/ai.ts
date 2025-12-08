@@ -1,7 +1,7 @@
 // AI Service - Groq for light tasks, Gemini for complex tasks
 import Groq from 'groq-sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { AI_CONFIG } from '../constants';
+import { AI_CONFIG, STORAGE_KEYS } from '../constants';
 import { QuizQuestion, ChatMessage, Flashcard } from '../types';
 import * as SecureStore from 'expo-secure-store';
 
@@ -426,6 +426,7 @@ Requirements:
 
 /**
  * Grade answer sheet - uses Gemini Pro for image analysis + reasoning
+ * Enhanced with "Ruthless Board Examiner" persona.
  */
 export async function gradeAnswerSheet(
     images: string[],
@@ -446,19 +447,38 @@ export async function gradeAnswerSheet(
         const result = await withTimeout(model.generateContent([
             ...imageParts,
             {
-                text: `You are a strict examiner. Grade the handwritten answers in the images.
+                text: `You are a STRICT BOARD EXAMINER (Ruthless Grader).
 
-Question Paper:
-${questionPaper || 'Standard assessment'}
+Your goal is to simulate a harsh board correction environment to prepare the student for reality.
 
-Reference Material:
-${referenceNotes.substring(0, 5000)}
+GRADING ALGORITHM:
+1. **Keywords**: No marks if key scientific/technical terms are missing.
+2. **Formatting**: Deduct marks for messy handwriting or poor structure.
+3. **Vague Answers**: Zero marks for "beating around the bush".
+4. **Diagrams**: Deduct if required diagrams are missing/poorly labeled.
+
+INPUTS:
+- Question Paper: ${questionPaper}
+- Reference Notes (Truth): ${referenceNotes.substring(0, 5000)}
+- Student Answers: (See images)
 
 OUTPUT FORMAT (Markdown):
-1. **Summary Table**: Question No | Marks Obtained | Max Marks
-2. **Total Score**: X / Y
-3. **Detailed Corrections**: For each wrong answer, explain WHY and what's missing
-4. **Areas for Improvement**: Bullet points`,
+# Answer Sheet Analysis
+
+## 📊 Scorecard
+| Question | Marks | Remarks (Why did you cut marks?) |
+|----------|-------|----------------------------------|
+| Q1       | 1/2   | Missing keyword "Photosynthesis" |
+| ...      | ...   | ...                              |
+| **Total**| **X/Y** | **(Percentage)**               |
+
+## 🔪 The Ruthless Review
+- **Major Flaws**: (List 3 critical mistakes)
+- **Formatting Issues**: (Handwriting, spacing, diagrams)
+- **Examiner's Verdict**: (Pass/Fail/Needs Serious Work)
+
+## 💡 Model Answers (For failed questions)
+(Provide correct answers for the question where student lost most marks)`,
             },
         ]), 120000); // 120s for grading with images
 
@@ -471,39 +491,54 @@ OUTPUT FORMAT (Markdown):
 
 /**
  * Generate study plan based on exam schedule - uses Gemini
+ * Enhanced with Intelligent Scheduler (Gap Analysis & Constraints)
  */
 export async function generateStudyPlan(
     exams: { subject: string; date: number; chapters: string[] }[],
     weakTopics: string[],
-    availableHoursPerDay: number = 4
+    availableHoursPerDay: number = 4,
+    constraints?: { blockedTimes: string[]; preferredTimes: string[] }
 ): Promise<string> {
     try {
         const gemini = await getGeminiClient();
-        const model = gemini.getGenerativeModel({ model: AI_CONFIG.gemini.flashModel });
+        const model = gemini.getGenerativeModel({ model: AI_CONFIG.gemini.flashModel }); // Use Flash for speed
 
         const examInfo = exams.map(e => ({
             subject: e.subject,
             daysLeft: Math.ceil((e.date - Date.now()) / (1000 * 60 * 60 * 24)),
             chapters: e.chapters,
+            priority: Math.ceil((e.date - Date.now()) / (1000 * 60 * 60 * 24)) < 3 ? 'CRITICAL' : 'NORMAL'
         }));
 
-        const result = await withTimeout(model.generateContent(`Create a daily study plan for the next 7 days.
+        const result = await withTimeout(model.generateContent(`Act as an Elite Exam Strategist. Create a high-performance 7-day study schedule.
 
-Upcoming Exams:
-${JSON.stringify(examInfo, null, 2)}
+## INPUTS:
+- **Upcoming Exams**: ${JSON.stringify(examInfo, null, 2)}
+- **Weak Areas (Gap Analysis)**: ${weakTopics.join(', ') || 'None identifying, focus on equal distribution'}
+- **Constraints**: 
+  - Study Time: ${availableHoursPerDay} hrs/day
+  - Blocked Times: ${constraints?.blockedTimes?.join(', ') || 'None'}
 
-Weak Topics to Focus On:
-${weakTopics.join(', ') || 'None identified'}
+## STRATEGY RULES:
+1. **Spaced Repetition**: Don't cram one subject all day. Interleave subjects.
+2. **Gap Analysis**: Allocate double time to "Weak Areas".
+3. **Proximity Bias**: Exams happening in < 3 days get 70% of the day's slot.
+4. **Burnout Prevention**: Include 10-min breaks every hour.
 
-Available Study Time: ${availableHoursPerDay} hours per day
+## OUTPUT FORMAT (Markdown):
+# 📅 7-Day Battle Plan
 
-OUTPUT FORMAT (Markdown):
-For each day, provide:
-- Date
-- Topics to cover with time allocation
-- Priority reasoning
+## Strategy Overview
+(Explain the logic: "Focusing heavily on Math due to exam in 2 days...")
 
-Focus on weak areas and subjects with closer exam dates.`), 60000); // 60s for study plan
+## Daily Schedule
+### Day 1 (Date)
+- [Time] **Subject**: Topic (Reasoning)
+- [Time] **Break**
+...
+
+### Day 2...
+...`), 60000); // 60s for study plan
 
         return result.response.text() || 'Failed to generate study plan.';
     } catch (error) {
@@ -538,7 +573,7 @@ Format: [{"subject": "Math", "date": 1715644800000}]`,
 
         const text = result.response.text();
         const parsed = extractJSON<{ subject: string; date: number }[]>(text, []);
-        
+
         if (!Array.isArray(parsed) || parsed.length === 0) {
             throw new Error('Could not extract valid exams from image.');
         }

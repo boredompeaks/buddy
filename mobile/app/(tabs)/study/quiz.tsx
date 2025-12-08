@@ -1,356 +1,324 @@
-// Quiz Mode Screen - Test knowledge with explanations for wrong answers
+// Quiz Mode Screen - Batch Submission Flow
+// Enhanced with LinearGradient, Adaptive Grid, and Reanimated Animations
 import { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CheckCircle2, XCircle, ChevronRight, Lightbulb, AlertTriangle, Trophy, RefreshCw } from 'lucide-react-native';
-import { useNotesStore } from '../../../src/stores';
+import { ArrowLeft, CheckCircle2, XCircle, ChevronRight, Lightbulb, AlertTriangle, Trophy, RefreshCw, Check } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeInDown, Layout } from 'react-native-reanimated';
+import { useNotesStore } from '../../../src/stores'; // Adjusted path
 import { generateQuiz } from '../../../src/services/ai';
-import { COLORS } from '../../../src/constants';
+import { useThemeColors } from '../../../hooks/useThemeColors'; // Adjusted path
+import { useResponsiveLayout } from '../../../src/hooks/useResponsiveLayout'; // Adjusted path
 import { QuizQuestion } from '../../../src/types';
 
-type QuizState = 'loading' | 'question' | 'result' | 'explanation' | 'complete';
+type QuizState = 'config' | 'loading' | 'answering' | 'submitting' | 'results';
 
 export default function QuizScreen() {
     const { noteId } = useLocalSearchParams<{ noteId?: string }>();
     const router = useRouter();
+    const colors = useThemeColors();
+    const { numColumns, gap, containerPadding, isTabletOrDesktop } = useResponsiveLayout();
 
     const notes = useNotesStore(state => state.notes);
     const note = noteId ? notes.find(n => n.id === noteId) : null;
 
-    const [quizState, setQuizState] = useState<QuizState>('loading');
+    const [quizState, setQuizState] = useState<QuizState>('config');
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-    const [answers, setAnswers] = useState<number[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
+    const [score, setScore] = useState(0);
+    const [questionCount, setQuestionCount] = useState(10);
+    const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard' | 'board'>('board');
 
-    // Load quiz on mount
-    useMemo(() => {
+    // Generate Quiz
+    const handleStartQuiz = async () => {
         if (!note) return;
-
-        generateQuiz(note.content, 5)
-            .then(q => {
-                setQuestions(q);
-                setQuizState('question');
-            })
-            .catch(err => {
-                setError(err.message || 'Failed to generate quiz');
-                setQuizState('loading');
-            });
-    }, [note?.id]);
-
-    const currentQuestion = questions[currentIndex];
-    const isCorrect = selectedAnswer === currentQuestion?.correctAnswer;
-
-    const handleSelectAnswer = useCallback((index: number) => {
-        if (selectedAnswer !== null) return; // Already answered
-
-        setSelectedAnswer(index);
-        setAnswers(prev => [...prev, index]);
-
-        // Show result briefly then move to explanation
-        setQuizState('result');
-        setTimeout(() => {
-            setQuizState('explanation');
-        }, 1000);
-    }, [selectedAnswer]);
-
-    const handleNext = useCallback(() => {
-        if (currentIndex < questions.length - 1) {
-            setCurrentIndex(prev => prev + 1);
-            setSelectedAnswer(null);
-            setQuizState('question');
-        } else {
-            setQuizState('complete');
+        setQuizState('loading');
+        try {
+            const generated = await generateQuiz(note.content, questionCount, difficulty);
+            setQuestions(generated);
+            setQuizState('answering');
+            setSelectedAnswers({});
+        } catch (error) {
+            Alert.alert('Error', 'Failed to generate quiz. Please try again.');
+            setQuizState('config');
         }
-    }, [currentIndex, questions.length]);
+    };
 
-    const handleRestart = useCallback(() => {
-        setCurrentIndex(0);
-        setSelectedAnswer(null);
-        setAnswers([]);
-        setQuizState('question');
-    }, []);
+    // Handle Answer Selection
+    const toggleAnswer = (qIndex: number, optionIndex: number) => {
+        if (quizState !== 'answering') return;
+        setSelectedAnswers(prev => ({
+            ...prev,
+            [qIndex]: optionIndex
+        }));
+    };
 
-    // Calculate score
-    const score = useMemo(() => {
-        return answers.reduce((acc, ans, i) => {
-            return acc + (ans === questions[i]?.correctAnswer ? 1 : 0);
-        }, 0);
-    }, [answers, questions]);
+    // Submit Quiz
+    const handleSubmit = () => {
+        // Calculate score
+        let correctCount = 0;
+        questions.forEach((q, index) => {
+            if (selectedAnswers[index] === q.correctAnswer) {
+                correctCount++;
+            }
+        });
+        setScore(correctCount);
+        setQuizState('results');
+    };
 
-    const scorePercentage = questions.length > 0 ? Math.round((score / questions.length) * 100) : 0;
+    // Restart
+    const handleRestart = () => {
+        setQuizState('config');
+        setQuestions([]);
+        setSelectedAnswers({});
+        setScore(0);
+    };
 
-    // Loading state
-    if (quizState === 'loading' && !error) {
+    // Config View
+    if (quizState === 'config') {
         return (
-            <SafeAreaView style={styles.container}>
-                <Stack.Screen options={{ headerShown: false }} />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={COLORS.light.primary} />
-                    <Text style={styles.loadingText}>Generating quiz from your notes...</Text>
-                    <Text style={styles.loadingSubtext}>This may take a few seconds</Text>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // Error state
-    if (error) {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Stack.Screen options={{ headerShown: false }} />
-                <View style={styles.errorContainer}>
-                    <AlertTriangle size={48} color={COLORS.light.error} />
-                    <Text style={styles.errorTitle}>Quiz Generation Failed</Text>
-                    <Text style={styles.errorText}>{error}</Text>
-                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Text style={styles.backButtonText}>Go Back</Text>
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-        );
-    }
-
-    // Complete state - Show results
-    if (quizState === 'complete') {
-        return (
-            <SafeAreaView style={styles.container}>
-                <Stack.Screen options={{ headerShown: false }} />
-                <ScrollView contentContainerStyle={styles.completeContainer}>
-                    <View style={styles.trophyContainer}>
-                        <Trophy size={64} color={scorePercentage >= 70 ? '#f59e0b' : COLORS.light.primary} />
+            <View style={[styles.container, { backgroundColor: colors.background }]}>
+                <LinearGradient
+                    colors={[colors.primary, colors.primary + '80']}
+                    style={styles.headerGradient}
+                />
+                <SafeAreaView style={{ flex: 1 }}>
+                    <View style={styles.header}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                            <ArrowLeft size={24} color="#FFF" />
+                        </TouchableOpacity>
+                        <Text style={styles.headerTitleWhite}>New Quiz</Text>
+                        <View style={{ width: 24 }} />
                     </View>
 
-                    <Text style={styles.completeTitle}>Quiz Complete!</Text>
+                    <View style={[styles.configCard, { backgroundColor: colors.surface, margin: containerPadding }]}>
+                        <Text style={[styles.label, { color: colors.text }]}>Topic</Text>
+                        <Text style={[styles.value, { color: colors.primary }]}>{note?.title || 'Select a note first'}</Text>
 
-                    <View style={styles.scoreCard}>
-                        <Text style={styles.scoreValue}>{score}/{questions.length}</Text>
-                        <Text style={styles.scoreLabel}>Correct Answers</Text>
-                        <View style={[styles.scoreBadge, { backgroundColor: scorePercentage >= 70 ? COLORS.light.success : COLORS.light.warning }]}>
-                            <Text style={styles.scoreBadgeText}>{scorePercentage}%</Text>
+                        <Text style={[styles.label, { color: colors.text, marginTop: 20 }]}>Difficulty</Text>
+                        <View style={styles.optionRow}>
+                            {(['easy', 'medium', 'hard', 'board'] as const).map(diff => (
+                                <TouchableOpacity
+                                    key={diff}
+                                    style={[
+                                        styles.optionChip,
+                                        {
+                                            backgroundColor: difficulty === diff ? colors.primary : colors.surfaceHighlight,
+                                            borderColor: difficulty === diff ? colors.primary : colors.border
+                                        }
+                                    ]}
+                                    onPress={() => setDifficulty(diff)}
+                                >
+                                    <Text style={[
+                                        styles.optionText,
+                                        { color: difficulty === diff ? '#FFF' : colors.text }
+                                    ]}>{diff.charAt(0).toUpperCase() + diff.slice(1)}</Text>
+                                </TouchableOpacity>
+                            ))}
                         </View>
-                    </View>
 
-                    {/* Review wrong answers */}
-                    {answers.map((ans, i) => {
-                        const q = questions[i];
-                        const wasCorrect = ans === q.correctAnswer;
-                        if (wasCorrect) return null;
-
-                        return (
-                            <View key={i} style={styles.reviewCard}>
-                                <View style={styles.reviewHeader}>
-                                    <XCircle size={20} color={COLORS.light.error} />
-                                    <Text style={styles.reviewQuestion}>{q.question}</Text>
-                                </View>
-                                <Text style={styles.reviewYourAnswer}>
-                                    Your answer: <Text style={styles.wrongAnswer}>{q.options[ans]}</Text>
-                                </Text>
-                                <Text style={styles.reviewCorrectAnswer}>
-                                    Correct: <Text style={styles.correctAnswer}>{q.options[q.correctAnswer]}</Text>
-                                </Text>
-                                <View style={styles.explanationBox}>
-                                    <Lightbulb size={16} color={COLORS.light.primary} />
-                                    <Text style={styles.explanationText}>{q.explanation}</Text>
-                                </View>
-                            </View>
-                        );
-                    })}
-
-                    <View style={styles.actionButtons}>
-                        <TouchableOpacity style={styles.actionButton} onPress={handleRestart}>
-                            <RefreshCw size={20} color={COLORS.light.primary} />
-                            <Text style={styles.actionButtonText}>Try Again</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={[styles.actionButton, styles.primaryButton]} onPress={() => router.back()}>
-                            <Text style={styles.primaryButtonText}>Done</Text>
+                        <TouchableOpacity
+                            style={[styles.primaryButton, { backgroundColor: colors.primary, marginTop: 40 }]}
+                            onPress={handleStartQuiz}
+                            disabled={!note}
+                        >
+                            <Trophy size={20} color="#FFF" />
+                            <Text style={styles.primaryButtonText}>Start Quiz</Text>
                         </TouchableOpacity>
                     </View>
+                </SafeAreaView>
+            </View>
+        );
+    }
+
+    // Loading View
+    if (quizState === 'loading') {
+        return (
+            <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.text }]}>Generating tricky questions...</Text>
+            </View>
+        );
+    }
+
+    // Main Quiz Logic (Answering & Results)
+    const isResults = quizState === 'results';
+
+    return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <LinearGradient
+                colors={[colors.primary, colors.primary + '80']}
+                style={styles.headerGradient}
+            />
+            <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                        <ArrowLeft size={24} color="#FFF" />
+                    </TouchableOpacity>
+                    <Text style={styles.headerTitleWhite}>
+                        {isResults ? 'Quiz Results' : `Question ${Object.keys(selectedAnswers).length}/${questions.length}`}
+                    </Text>
+                    {/* Score Badge */}
+                    {isResults && (
+                        <View style={styles.scoreBadge}>
+                            <Text style={styles.scoreText}>{Math.round((score / questions.length) * 100)}%</Text>
+                        </View>
+                    )}
+                    {!isResults && <View style={{ width: 24 }} />}
+                </View>
+
+                <ScrollView contentContainerStyle={{ padding: containerPadding }}>
+                    {/* Score Summary Card */}
+                    {isResults && (
+                        <Animated.View entering={FadeInDown.delay(100).springify()} style={[styles.resultCard, { backgroundColor: colors.surface }]}>
+                            <Trophy size={48} color={colors.warning} />
+                            <Text style={[styles.resultTitle, { color: colors.text }]}>
+                                {score === questions.length ? 'Perfect Score!' : score > questions.length / 2 ? 'Great Job!' : 'Build Competency!'}
+                            </Text>
+                            <Text style={[styles.resultSub, { color: colors.textSecondary }]}>
+                                You got {score} out of {questions.length} correct.
+                            </Text>
+                            <TouchableOpacity style={[styles.restartButton, { borderColor: colors.primary }]} onPress={handleRestart}>
+                                <RefreshCw size={16} color={colors.primary} />
+                                <Text style={[styles.restartText, { color: colors.primary }]}>Try Again</Text>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    )}
+
+                    {/* Questions Grid */}
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: gap }}>
+                        {questions.map((q, qIndex) => {
+                            const userAnswer = selectedAnswers[qIndex];
+                            const isCorrect = userAnswer === q.correctAnswer;
+                            const showFeedback = isResults;
+
+                            return (
+                                <Animated.View
+                                    key={qIndex}
+                                    entering={FadeInDown.delay(qIndex * 100).springify()}
+                                    layout={Layout.springify()}
+                                    style={{ width: numColumns > 1 ? '48%' : '100%' }}
+                                >
+                                    <View style={[
+                                        styles.questionCard,
+                                        {
+                                            backgroundColor: colors.surface,
+                                            borderColor: showFeedback ? (isCorrect ? colors.success : colors.error) : 'transparent',
+                                            borderWidth: showFeedback ? 2 : 0
+                                        }
+                                    ]}>
+                                        {/* Question Header */}
+                                        <View style={styles.qHeader}>
+                                            <Text style={[styles.qNum, { color: colors.textSecondary }]}>Q{qIndex + 1}</Text>
+                                            {q.difficulty === 'hard' && <AlertTriangle size={16} color={colors.warning} />}
+                                        </View>
+                                        <Text style={[styles.questionText, { color: colors.text }]}>{q.question}</Text>
+
+                                        {/* Options */}
+                                        <View style={styles.optionsList}>
+                                            {q.options.map((opt, optIndex) => {
+                                                const isSelected = userAnswer === optIndex;
+                                                const isRight = q.correctAnswer === optIndex;
+
+                                                let optionColor = colors.surfaceHighlight;
+                                                let textColor = colors.text;
+
+                                                if (showFeedback) {
+                                                    if (isRight) { optionColor = colors.success + '20'; textColor = colors.success; }
+                                                    else if (isSelected && !isRight) { optionColor = colors.error + '20'; textColor = colors.error; }
+                                                } else if (isSelected) {
+                                                    optionColor = colors.primary + '20';
+                                                    textColor = colors.primary;
+                                                }
+
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={optIndex}
+                                                        style={[styles.optionButton, { backgroundColor: optionColor }]}
+                                                        onPress={() => toggleAnswer(qIndex, optIndex)}
+                                                        disabled={isResults}
+                                                    >
+                                                        <Text style={[styles.optionText, { color: textColor }]}>{opt}</Text>
+                                                        {showFeedback && isRight && <CheckCircle2 size={16} color={colors.success} />}
+                                                        {showFeedback && isSelected && !isRight && <XCircle size={16} color={colors.error} />}
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </View>
+
+                                        {/* Inline Explanation */}
+                                        {showFeedback && !isCorrect && (
+                                            <View style={[styles.explanationBox, { backgroundColor: colors.background }]}>
+                                                <Lightbulb size={16} color={colors.warning} />
+                                                <Text style={[styles.explanationText, { color: colors.textSecondary }]}>{q.explanation}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                </Animated.View>
+                            );
+                        })}
+                    </View>
+
+                    {/* Submit Button */}
+                    {!isResults && (
+                        <TouchableOpacity
+                            style={[
+                                styles.submitButton,
+                                { backgroundColor: Object.keys(selectedAnswers).length === questions.length ? colors.primary : colors.textMuted }
+                            ]}
+                            onPress={handleSubmit}
+                            disabled={Object.keys(selectedAnswers).length !== questions.length}
+                        >
+                            <Text style={styles.submitText}>Submit Quiz</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    <View style={{ height: 40 }} />
                 </ScrollView>
             </SafeAreaView>
-        );
-    }
-
-    // Question / Result / Explanation state
-    return (
-        <SafeAreaView style={styles.container}>
-            <Stack.Screen options={{ headerShown: false }} />
-
-            {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()}>
-                    <ArrowLeft size={24} color={COLORS.light.text} />
-                </TouchableOpacity>
-                <View style={styles.progress}>
-                    <Text style={styles.progressText}>
-                        Question {currentIndex + 1} of {questions.length}
-                    </Text>
-                    <View style={styles.progressBar}>
-                        <View style={[styles.progressFill, { width: `${((currentIndex + 1) / questions.length) * 100}%` }]} />
-                    </View>
-                </View>
-            </View>
-
-            <ScrollView contentContainerStyle={styles.questionContent}>
-                {/* Question */}
-                <Text style={styles.questionText}>{currentQuestion?.question}</Text>
-
-                {/* Options */}
-                <View style={styles.optionsContainer}>
-                    {currentQuestion?.options.map((option, index) => {
-                        const isSelected = selectedAnswer === index;
-                        const isCorrectOption = index === currentQuestion.correctAnswer;
-                        const showResult = quizState !== 'question';
-
-                        let optionStyle = styles.option;
-                        let textStyle = styles.optionText;
-
-                        if (showResult) {
-                            if (isCorrectOption) {
-                                optionStyle = { ...styles.option, ...styles.optionCorrect };
-                                textStyle = { ...styles.optionText, ...styles.optionTextCorrect };
-                            } else if (isSelected && !isCorrectOption) {
-                                optionStyle = { ...styles.option, ...styles.optionWrong };
-                                textStyle = { ...styles.optionText, ...styles.optionTextWrong };
-                            }
-                        } else if (isSelected) {
-                            optionStyle = { ...styles.option, ...styles.optionSelected };
-                        }
-
-                        return (
-                            <TouchableOpacity
-                                key={index}
-                                style={optionStyle}
-                                onPress={() => handleSelectAnswer(index)}
-                                disabled={selectedAnswer !== null}
-                            >
-                                <View style={styles.optionContent}>
-                                    <View style={[styles.optionLetter, showResult && isCorrectOption && styles.optionLetterCorrect]}>
-                                        <Text style={styles.optionLetterText}>{String.fromCharCode(65 + index)}</Text>
-                                    </View>
-                                    <Text style={textStyle}>{option}</Text>
-                                </View>
-                                {showResult && isCorrectOption && <CheckCircle2 size={24} color={COLORS.light.success} />}
-                                {showResult && isSelected && !isCorrectOption && <XCircle size={24} color={COLORS.light.error} />}
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-
-                {/* Explanation for wrong answers */}
-                {quizState === 'explanation' && !isCorrect && (
-                    <View style={styles.explanationCard}>
-                        <View style={styles.explanationHeader}>
-                            <Lightbulb size={20} color={COLORS.light.primary} />
-                            <Text style={styles.explanationTitle}>Why this is wrong</Text>
-                        </View>
-                        <Text style={styles.explanationContent}>{currentQuestion?.explanation}</Text>
-                    </View>
-                )}
-
-                {/* Next Button */}
-                {quizState === 'explanation' && (
-                    <TouchableOpacity style={styles.nextButton} onPress={handleNext}>
-                        <Text style={styles.nextButtonText}>
-                            {currentIndex < questions.length - 1 ? 'Next Question' : 'See Results'}
-                        </Text>
-                        <ChevronRight size={20} color="#fff" />
-                    </TouchableOpacity>
-                )}
-            </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-    loadingText: { fontSize: 18, fontWeight: '600', color: COLORS.light.text },
-    loadingSubtext: { fontSize: 14, color: COLORS.light.textSecondary },
-    errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40, gap: 16 },
-    errorTitle: { fontSize: 20, fontWeight: '700', color: COLORS.light.text },
-    errorText: { fontSize: 14, color: COLORS.light.textSecondary, textAlign: 'center' },
-    backButton: { backgroundColor: COLORS.light.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12, marginTop: 8 },
-    backButtonText: { color: '#fff', fontWeight: '600' },
-    header: { flexDirection: 'row', alignItems: 'center', padding: 16, gap: 16, borderBottomWidth: 1, borderBottomColor: COLORS.light.border },
-    progress: { flex: 1 },
-    progressText: { fontSize: 14, fontWeight: '600', color: COLORS.light.textSecondary, marginBottom: 8 },
-    progressBar: { height: 6, backgroundColor: COLORS.light.border, borderRadius: 3 },
-    progressFill: { height: '100%', backgroundColor: COLORS.light.primary, borderRadius: 3 },
-    questionContent: { padding: 20 },
-    questionText: { fontSize: 22, fontWeight: '700', color: COLORS.light.text, lineHeight: 32, marginBottom: 24 },
-    optionsContainer: { gap: 12 },
-    option: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: COLORS.light.surface,
-        padding: 16,
-        borderRadius: 16,
-        borderWidth: 2,
-        borderColor: 'transparent',
-    },
-    optionSelected: { borderColor: COLORS.light.primary, backgroundColor: COLORS.light.primary + '10' },
-    optionCorrect: { borderColor: COLORS.light.success, backgroundColor: COLORS.light.success + '15' },
-    optionWrong: { borderColor: COLORS.light.error, backgroundColor: COLORS.light.error + '15' },
-    optionContent: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-    optionLetter: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: COLORS.light.surfaceVariant,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    optionLetterCorrect: { backgroundColor: COLORS.light.success },
-    optionLetterText: { fontSize: 14, fontWeight: '700', color: COLORS.light.text },
-    optionText: { fontSize: 16, color: COLORS.light.text, flex: 1 },
-    optionTextCorrect: { fontWeight: '600' },
-    optionTextWrong: { color: COLORS.light.textSecondary },
-    explanationCard: {
-        marginTop: 24,
-        backgroundColor: COLORS.light.primary + '10',
-        padding: 20,
-        borderRadius: 16,
-        borderLeftWidth: 4,
-        borderLeftColor: COLORS.light.primary,
-    },
-    explanationHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    explanationTitle: { fontSize: 16, fontWeight: '700', color: COLORS.light.primary },
-    explanationContent: { fontSize: 15, color: COLORS.light.text, lineHeight: 24 },
-    nextButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: COLORS.light.primary,
-        paddingVertical: 16,
-        borderRadius: 16,
-        marginTop: 24,
-        gap: 8,
-    },
-    nextButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-    completeContainer: { padding: 20, alignItems: 'center' },
-    trophyContainer: { marginVertical: 24 },
-    completeTitle: { fontSize: 28, fontWeight: '800', color: COLORS.light.text, marginBottom: 20 },
-    scoreCard: { alignItems: 'center', backgroundColor: COLORS.light.surface, padding: 24, borderRadius: 20, width: '100%', marginBottom: 24 },
-    scoreValue: { fontSize: 48, fontWeight: '800', color: COLORS.light.primary },
-    scoreLabel: { fontSize: 14, color: COLORS.light.textSecondary, marginTop: 4 },
-    scoreBadge: { marginTop: 12, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 20 },
-    scoreBadgeText: { color: '#fff', fontWeight: '700', fontSize: 18 },
-    reviewCard: { backgroundColor: COLORS.light.surface, padding: 16, borderRadius: 16, width: '100%', marginBottom: 12 },
-    reviewHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 12 },
-    reviewQuestion: { fontSize: 15, fontWeight: '600', color: COLORS.light.text, flex: 1 },
-    reviewYourAnswer: { fontSize: 14, color: COLORS.light.textSecondary },
-    wrongAnswer: { color: COLORS.light.error, fontWeight: '600' },
-    reviewCorrectAnswer: { fontSize: 14, color: COLORS.light.textSecondary, marginTop: 4 },
-    correctAnswer: { color: COLORS.light.success, fontWeight: '600' },
-    explanationBox: { flexDirection: 'row', gap: 8, marginTop: 12, padding: 12, backgroundColor: COLORS.light.primary + '10', borderRadius: 12 },
-    explanationText: { fontSize: 13, color: COLORS.light.text, flex: 1, lineHeight: 20 },
-    actionButtons: { flexDirection: 'row', gap: 12, width: '100%', marginTop: 12 },
-    actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderRadius: 16, backgroundColor: COLORS.light.surface },
-    actionButtonText: { fontSize: 15, fontWeight: '600', color: COLORS.light.primary },
-    primaryButton: { backgroundColor: COLORS.light.primary },
-    primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+    container: { flex: 1 },
+    headerGradient: { position: 'absolute', top: 0, left: 0, right: 0, height: 120 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10 },
+    headerTitleWhite: { fontSize: 20, fontWeight: '700', color: '#FFF' },
+    backButton: { padding: 8 },
+
+    configCard: { padding: 24, borderRadius: 20, shadowOpacity: 0.1, shadowRadius: 10 },
+    label: { fontSize: 16, fontWeight: '600' },
+    value: { fontSize: 18, fontWeight: '700', marginBottom: 10 },
+    optionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+    optionChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+    optionText: { fontSize: 14, fontWeight: '600' },
+    primaryButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, gap: 8 },
+    primaryButtonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+
+    loadingText: { marginTop: 16, fontSize: 16 },
+
+    scoreBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12 },
+    scoreText: { color: '#FFF', fontWeight: '700' },
+
+    resultCard: { alignItems: 'center', padding: 24, borderRadius: 20, marginBottom: 24 },
+    resultTitle: { fontSize: 24, fontWeight: '800', marginVertical: 8 },
+    resultSub: { fontSize: 16, marginBottom: 16 },
+    restartButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20, borderWidth: 1, gap: 8 },
+    restartText: { fontWeight: '600' },
+
+    questionCard: { padding: 16, borderRadius: 16, marginBottom: 16 },
+    qHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    qNum: { fontSize: 12, fontWeight: '700' },
+    questionText: { fontSize: 16, fontWeight: '600', marginBottom: 16, lineHeight: 22 },
+    optionsList: { gap: 8 },
+    optionButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 12, borderRadius: 12 },
+    explanationBox: { flexDirection: 'row', padding: 12, borderRadius: 8, marginTop: 12, gap: 8 },
+    explanationText: { flex: 1, fontSize: 13, lineHeight: 18 },
+
+    submitButton: { padding: 16, borderRadius: 16, alignItems: 'center', marginTop: 10 },
+    submitText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

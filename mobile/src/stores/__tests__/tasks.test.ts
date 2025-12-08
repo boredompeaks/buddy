@@ -15,6 +15,7 @@ global.crypto = {
 
 import { useTasksStore } from '../index';
 import * as db from '../../services/database';
+import { Task } from '../../types';
 
 describe('TasksStore', () => {
     beforeEach(() => {
@@ -67,12 +68,12 @@ describe('TasksStore', () => {
             useTasksStore.setState({ activeCategory: 'weekly' });
             const { result } = renderHook(() => useTasksStore());
 
-            let task;
+            let task: Task | undefined;
             await act(async () => {
                 task = await result.current.addTask({ text: 'Weekly Task' });
             });
 
-            expect(task.category).toBe('weekly');
+            expect(task?.category).toBe('weekly');
         });
     });
 

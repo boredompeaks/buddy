@@ -27,6 +27,7 @@ export const COLORS = {
         background: '#f8fafc',
         surface: '#ffffff',
         surfaceVariant: '#f1f5f9',
+        surfaceHighlight: '#e0e7ff', // Added
         text: '#1e293b',
         textSecondary: '#64748b',
         textMuted: '#94a3b8',
@@ -44,6 +45,7 @@ export const COLORS = {
         background: '#0f172a',
         surface: '#1e293b',
         surfaceVariant: '#334155',
+        surfaceHighlight: '#334155', // Added
         text: '#f1f5f9',
         textSecondary: '#94a3b8',
         textMuted: '#64748b',

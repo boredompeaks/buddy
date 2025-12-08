@@ -61,11 +61,12 @@ export const AI_CONFIG = {
         tasks: ['chat', 'quiz', 'summary', 'classify'],
     },
     gemini: {
-        flashModel: 'gemini-2.0-flash',
+        flashModel: 'gemini-2.5-flash-preview-05-20', // Updated to 2.5 Flash per spec
         proModel: 'gemini-2.5-pro-preview-05-06',
-        tasks: ['pdf', 'paper', 'grade', 'studyPlan'],
+        tasks: ['pdf', 'paper', 'grade', 'studyPlan', 'schedule'],
     },
 };
+
 
 // Storage Keys
 export const STORAGE_KEYS = {

@@ -53,8 +53,10 @@ export default function AIChatModal() {
         try {
             const response = await chatWithAI(
                 [...messages, userMessage],
-                note?.content
+                note?.content,
+                note?.title // Pass note title for context-aware grounding
             );
+
 
             // Only update if this is still the latest request
             if (requestId === latestRequestIdRef.current) {

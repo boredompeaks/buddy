@@ -158,17 +158,33 @@ async function getGeminiClient(): Promise<GoogleGenerativeAI> {
 
 /**
  * Chat with AI about doubts - uses Groq for fast responses
+ * Enhanced with context-aware grounding per Neural Link spec.
  */
 export async function chatWithAI(
     messages: ChatMessage[],
-    noteContent?: string
+    noteContent?: string,
+    noteTitle?: string
 ): Promise<string> {
     try {
         const groq = await getGroqClient();
 
+        // Context-Aware System Prompt (Neural Link Spec)
         const systemPrompt = noteContent
-            ? `You are a helpful tutor. The student is studying the following notes:\n---\n${noteContent.substring(0, 8000)}\n---\nAnswer their questions based on these notes. Use markdown for formatting.`
-            : 'You are a helpful study assistant. Answer clearly and use markdown for formatting.';
+            ? `You are a strict but helpful tutor.
+
+## GROUNDING RULES:
+1. The student is studying: "${noteTitle || 'Untitled Note'}"
+2. Your PRIMARY source of truth is the NOTE_CONTEXT below.
+3. Answer their questions based on the notes FIRST.
+4. If the explanation requires information NOT in the notes, provide it in a SEPARATE section at the end titled "## 📚 Relevant Extra Info".
+5. Use clear markdown formatting with headers, bullet points, and bold keywords.
+6. If you cannot answer from the notes, say "This isn't covered in your notes, but here's what I know..." and put it in the Extra Info section.
+
+## NOTE_CONTEXT:
+---
+${noteContent.substring(0, 10000)}
+---`
+            : 'You are a helpful study assistant. Answer clearly and use markdown for formatting. Be concise but thorough.';
 
         const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
@@ -179,8 +195,8 @@ export async function chatWithAI(
                     content: m.text,
                 })),
             ],
-            max_tokens: 2048,
-            temperature: 0.7,
+            max_tokens: 3000, // Increased for detailed explanations
+            temperature: 0.6, // Slightly more focused
         }));
 
         return response.choices[0]?.message?.content || 'Sorry, I could not generate a response.';
@@ -190,16 +206,19 @@ export async function chatWithAI(
     }
 }
 
+
 /**
  * Generate quiz questions from note content - uses Groq
+ * Enhanced with 40% Competency-Based (Board-style Tricky) questions.
  */
 export async function generateQuiz(
     content: string,
-    count: number = 10
+    count: number = 10,
+    difficulty: 'easy' | 'medium' | 'hard' | 'board' = 'board'
 ): Promise<QuizQuestion[]> {
     // Input validation
     const safeCount = Math.max(1, Math.min(20, count)); // Cap at 1-20 questions
-    const safeContent = content?.substring(0, 12000) || '';
+    const safeContent = content?.substring(0, 15000) || '';
 
     if (safeContent.length < 50) {
         throw new Error('Content is too short to generate meaningful quiz questions.');
@@ -208,27 +227,50 @@ export async function generateQuiz(
     try {
         const groq = await getGroqClient();
 
+        // Competency-Based Prompt Engineering (Board Exam Style)
+        const trickyCount = difficulty === 'board' ? Math.ceil(safeCount * 0.4) : 0;
+
         const response = await withTimeout(groq.chat.completions.create({
             model: AI_CONFIG.groq.model,
             messages: [
                 {
                     role: 'system',
-                    content: 'You are an expert quiz generator. Create multiple choice questions from the given content. Return ONLY valid JSON array.',
+                    content: `You are an expert Board Exam Question Paper Setter.
+
+## RULES:
+1. Create ${safeCount} MCQs from the content.
+2. **DIFFICULTY MIX**: ${trickyCount} questions MUST be "competency-based" (tricky). The rest can be standard.
+3. **COMPETENCY QUESTIONS** (the tricky ${trickyCount}):
+   - Use "Assertion-Reasoning" format: "Assertion (A): ... Reason (R): ..."
+   - Use PLAUSIBLE DISTRACTORS (common student misconceptions as wrong options)
+   - Test APPLICATION, not just memorization
+4. Each question MUST have 4 options.
+5. Include a "trapExplanation" field explaining WHY the wrong options are traps.
+
+Return ONLY valid JSON. No markdown.`,
                 },
                 {
                     role: 'user',
-                    content: `Generate ${safeCount} multiple choice quiz questions from this content. Each question MUST have 4 options, a correct answer index (0-3), and an explanation.
+                    content: `Generate ${safeCount} MCQs (${trickyCount} tricky, ${safeCount - trickyCount} standard) from this content.
 
-Return ONLY a JSON array in this exact format (no markdown, no explanation):
-[{"question": "...", "options": ["A", "B", "C", "D"], "correctAnswer": 0, "explanation": "...", "difficulty": "medium"}]
+JSON Format (EXACT):
+[{
+  "question": "...",
+  "options": ["A", "B", "C", "D"],
+  "correctAnswer": 0,
+  "explanation": "Why the correct answer is right...",
+  "trapExplanation": "Why students might pick wrong options...",
+  "difficulty": "easy|medium|hard",
+  "isCompetencyBased": true|false
+}]
 
 Content:
 ${safeContent}`,
                 },
             ],
-            max_tokens: 4096,
-            temperature: 0.5,
-        }), 60000); // 60s for quiz generation
+            max_tokens: 6000, // Increased for detailed explanations
+            temperature: 0.6,
+        }), 90000); // 90s for complex quiz generation
 
         const text = response.choices[0]?.message?.content || '[]';
 
@@ -250,6 +292,7 @@ ${safeContent}`,
         throw error;
     }
 }
+
 
 /**
  * Generate summary of content - uses Groq

@@ -46,7 +46,7 @@ export default function NotesScreen() {
         setRefreshing(true);
         await loadNotes();
         setRefreshing(false);
-    }, []);
+    }, [loadNotes]);
 
     const filteredNotes = useMemo(() => {
         let result = notes;

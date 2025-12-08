@@ -3,7 +3,7 @@ import { useWindowDimensions } from 'react-native';
 type Breakpoint = 'phone' | 'tablet' | 'desktop';
 
 export const useResponsiveLayout = () => {
-    const { width } = useWindowDimensions();
+    const { width, height } = useWindowDimensions(); // Get both from same call
 
     const breakpoint: Breakpoint = width >= 1024 ? 'desktop' : width >= 768 ? 'tablet' : 'phone';
 
@@ -25,6 +25,6 @@ export const useResponsiveLayout = () => {
         isTabletOrDesktop,
         containerPadding,
         gap,
-        isLandscape: width > 500 && width > useWindowDimensions().height, // Basic landscape check
+        isLandscape: width > 500 && width > height, // Use height from same call - NO RACE CONDITION
     };
 };

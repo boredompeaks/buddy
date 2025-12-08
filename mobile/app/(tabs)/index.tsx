@@ -29,7 +29,7 @@ export default function HomeScreen() {
         setRefreshing(true);
         await Promise.all([loadNotes(), loadTasks()]);
         setRefreshing(false);
-    }, []);
+    }, [loadNotes, loadTasks]);
 
     // Today's tasks
     const todaysTasks = useMemo(() => {

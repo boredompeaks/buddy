@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { initDatabase } from '../src/services/database';
 import { useNotesStore, useTasksStore, useExamStore, useSettingsStore, useStreakStore, useStudyStatsStore } from '../src/stores';
+import { useFlashcardStore } from '../src/stores/flashcards';
 import { COLORS } from '../src/constants';
 
 export default function RootLayout() {
@@ -17,6 +18,7 @@ export default function RootLayout() {
     const loadSettings = useSettingsStore(state => state.loadSettings);
     const loadStreak = useStreakStore(state => state.loadStreak);
     const loadStudyStats = useStudyStatsStore(state => state.loadStats);
+    const loadFlashcardDecks = useFlashcardStore(state => state.loadDecks);
     const theme = useSettingsStore(state => state.settings.theme);
 
     useEffect(() => {
@@ -32,6 +34,7 @@ export default function RootLayout() {
                     loadSettings(),
                     loadStreak(),
                     loadStudyStats(),
+                    loadFlashcardDecks(),
                 ]);
 
                 setIsReady(true);

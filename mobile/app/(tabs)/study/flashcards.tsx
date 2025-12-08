@@ -9,10 +9,12 @@ import Animated, {
     withSpring,
     interpolate,
 } from 'react-native-reanimated';
-import { ArrowLeft, RotateCcw, ThumbsUp, ThumbsDown, Sparkles, AlertTriangle, BookOpen, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, RotateCcw, ThumbsUp, ThumbsDown, Sparkles, AlertTriangle, BookOpen, ChevronRight, RefreshCw } from 'lucide-react-native';
 import { useNotesStore } from '../../../src/stores';
+import { useFlashcardStore } from '../../../src/stores/flashcards';
 import { generateFlashcards } from '../../../src/services/ai';
 import { useThemeColors } from '../../../hooks/useThemeColors';
+import { useHaptics } from '../../../src/hooks/useHaptics';
 import type { Flashcard } from '../../../src/types';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -77,6 +79,16 @@ export default function FlashcardScreen() {
     const notes = useNotesStore(state => state.notes);
     const note = noteId ? notes.find(n => n.id === noteId) : null;
 
+    // Persistence
+    const getDeckByNoteId = useFlashcardStore(state => state.getDeckByNoteId);
+    const saveDeck = useFlashcardStore(state => state.saveDeck);
+    const updateCardMastery = useFlashcardStore(state => state.updateCardMastery);
+    const recordStudySession = useFlashcardStore(state => state.recordStudySession);
+
+    // Haptics
+    const haptics = useHaptics();
+    const [currentDeckId, setCurrentDeckId] = useState<string | null>(null);
+
     const [state, setState] = useState<FlashcardState>(noteId ? 'loading' : 'selection');
     const [error, setError] = useState<string | null>(null);
     const [cards, setCards] = useState<CardWithSM2[]>([]);
@@ -98,34 +110,72 @@ export default function FlashcardScreen() {
         }
     }, [noteId, note]);
 
-    async function loadCards() {
-        if (!note?.content) {
+    async function loadCards(forceRegenerate = false) {
+        if (!note?.content || !noteId) {
             setError('No content to generate flashcards from.');
             setState('error');
             return;
         }
+
         setState('loading');
+
         try {
+            // Check for existing persistent deck (unless force regenerate)
+            if (!forceRegenerate) {
+                const existingDeck = getDeckByNoteId(noteId);
+                if (existingDeck && existingDeck.cards.length > 0) {
+                    // Load from persistence, shuffle for variety
+                    const shuffled = [...existingDeck.cards].sort(() => Math.random() - 0.5);
+                    const cardsWithSM2: CardWithSM2[] = shuffled.map(c => ({
+                        id: c.id,
+                        front: c.front,
+                        back: c.back,
+                        easeFactor: c.easeFactor,
+                        interval: c.interval,
+                        repetitions: c.repetitions,
+                        nextReview: c.nextReview,
+                        createdAt: existingDeck.createdAt,
+                        deckId: existingDeck.id,
+                    }));
+                    setCards(cardsWithSM2);
+                    setCurrentDeckId(existingDeck.id);
+                    setState('studying');
+                    haptics.light();
+                    return;
+                }
+            }
+
+            // Generate new flashcards
             const generated = await generateFlashcards(note.content, 15);
             if (!Array.isArray(generated) || generated.length === 0) {
                 throw new Error('Failed to generate flashcards.');
             }
-            const cardsWithSM2: CardWithSM2[] = generated.map((card, i) => ({
-                id: `card-${i}-${Date.now()}`,
-                front: card.front,
-                back: card.back,
-                easeFactor: 2.5,
-                interval: 0,
-                repetitions: 0,
-                nextReview: Date.now(),
-                createdAt: Date.now(),
-                deckId: deckId ?? 'temp',
+
+            // Save to persistent store
+            const savedDeck = await saveDeck(noteId, note.title, note.subject, generated);
+            setCurrentDeckId(savedDeck.id);
+
+            // Shuffle for variety
+            const shuffled = [...savedDeck.cards].sort(() => Math.random() - 0.5);
+            const cardsWithSM2: CardWithSM2[] = shuffled.map(c => ({
+                id: c.id,
+                front: c.front,
+                back: c.back,
+                easeFactor: c.easeFactor,
+                interval: c.interval,
+                repetitions: c.repetitions,
+                nextReview: c.nextReview,
+                createdAt: savedDeck.createdAt,
+                deckId: savedDeck.id,
             }));
+
             setCards(cardsWithSM2);
             setState('studying');
+            haptics.success();
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
             setState('error');
+            haptics.error();
         }
     }
 
@@ -199,7 +249,7 @@ export default function FlashcardScreen() {
                     keyExtractor={item => item.id}
                     contentContainerStyle={styles.listContent}
                     renderItem={({ item }) => (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.noteItem, { backgroundColor: colors.surface }]}
                             onPress={() => handleSelectNote(item.id)}
                         >

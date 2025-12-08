@@ -4,14 +4,17 @@ import { useState, useCallback, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, FileText, Clock, Target, AlertTriangle, Download, Share2, Sparkles, BookOpen } from 'lucide-react-native';
+import { ArrowLeft, FileText, Clock, Target, AlertTriangle, Download, Share2, Sparkles, BookOpen, Save, Printer } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Clipboard from 'expo-clipboard';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import Markdown from 'react-native-markdown-display';
-import { useNotesStore } from '../../../src/stores'; // Adjusted path
+import { useNotesStore } from '../../../src/stores';
 import { generateExamPaper } from '../../../src/services/ai';
 import { COLORS, EXAM_PATTERNS } from '../../../src/constants';
-import { useThemeColors } from '../../../hooks/useThemeColors'; // Adjusted path
+import { useThemeColors } from '../../../hooks/useThemeColors';
+import { useHaptics } from '../../../src/hooks/useHaptics';
 
 type GeneratorState = 'config' | 'loading' | 'result' | 'error';
 
@@ -34,7 +37,9 @@ const MARK_OPTIONS = [40, 60, 80, 100];
 export default function PaperGeneratorScreen() {
     const router = useRouter();
     const colors = useThemeColors();
+    const haptics = useHaptics();
     const notes = useNotesStore(state => state.notes);
+    const addNote = useNotesStore(state => state.addNote);
 
     // Derived state: Available subjects from notes
     const subjects = useMemo(() => Array.from(new Set(notes.map(n => n.subject).filter(Boolean))).sort(), [notes]);
@@ -223,6 +228,61 @@ export default function PaperGeneratorScreen() {
                                 {generatedPaper}
                             </Markdown>
                         </View>
+
+                        {/* Action Buttons */}
+                        <View style={styles.actionButtons}>
+                            <TouchableOpacity
+                                style={[styles.actionButton, { backgroundColor: colors.success }]}
+                                onPress={async () => {
+                                    haptics.success();
+                                    try {
+                                        const note = await addNote({
+                                            title: `${config.subject} Paper - ${new Date().toLocaleDateString()}`,
+                                            content: generatedPaper,
+                                            subject: config.subject,
+                                        });
+                                        Alert.alert('Saved!', 'Paper saved to Notes under Papers/Generated category.');
+                                    } catch (e) {
+                                        Alert.alert('Error', 'Failed to save note.');
+                                    }
+                                }}
+                            >
+                                <Save size={20} color="#FFF" />
+                                <Text style={styles.actionButtonText}>Save to Notes</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                                onPress={async () => {
+                                    haptics.medium();
+                                    try {
+                                        const html = `
+                                            <html>
+                                            <head>
+                                                <style>
+                                                    body { font-family: Georgia, serif; padding: 40px; line-height: 1.6; }
+                                                    h1 { color: #4f46e5; border-bottom: 2px solid #4f46e5; }
+                                                    h2 { color: #1e293b; margin-top: 20px; }
+                                                    strong { color: #4f46e5; }
+                                                </style>
+                                            </head>
+                                            <body>
+                                                ${generatedPaper.replace(/\n/g, '<br/>').replace(/#{1,}/g, '<h2>')}
+                                            </body>
+                                            </html>
+                                        `;
+                                        const { uri } = await Print.printToFileAsync({ html });
+                                        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Exam Paper' });
+                                    } catch (e) {
+                                        Alert.alert('Error', 'Failed to export PDF.');
+                                    }
+                                }}
+                            >
+                                <Printer size={20} color="#FFF" />
+                                <Text style={styles.actionButtonText}>Export PDF</Text>
+                            </TouchableOpacity>
+                        </View>
+
                         <View style={{ height: 40 }} />
                     </ScrollView>
                 ) : (
@@ -271,4 +331,7 @@ const styles = StyleSheet.create({
     loadingText: { marginTop: 16, fontSize: 18, fontWeight: '600' },
     loadingSub: { marginTop: 8, fontSize: 14 },
     paperCard: { padding: 20, borderRadius: 16, minHeight: 500 },
+    actionButtons: { flexDirection: 'row', gap: 12, marginTop: 20 },
+    actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 16, borderRadius: 16, gap: 8 },
+    actionButtonText: { color: '#FFF', fontSize: 14, fontWeight: '600' },
 });

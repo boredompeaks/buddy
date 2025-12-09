@@ -230,7 +230,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         try {
             const stored = await AsyncStorage.getItem(STORAGE_KEYS.settings);
             if (stored) {
-                set({ settings: { ...defaultSettings, ...JSON.parse(stored) }, isLoading: false });
+                try {
+                    const parsed = JSON.parse(stored);
+                    set({ settings: { ...defaultSettings, ...parsed }, isLoading: false });
+                } catch (parseError) {
+                    console.error('Corrupt settings data, using defaults:', parseError);
+                    await AsyncStorage.removeItem(STORAGE_KEYS.settings);
+                    set({ isLoading: false });
+                }
             } else {
                 set({ isLoading: false });
             }
@@ -272,17 +279,23 @@ export const useStreakStore = create<StreakState>((set, get) => ({
         try {
             const stored = await AsyncStorage.getItem(STORAGE_KEYS.streak);
             if (stored) {
-                const streak = JSON.parse(stored) as StreakData;
-                // Check if streak should be reset
-                if (streak.lastStudyDate) {
-                    const lastDate = parseISO(streak.lastStudyDate);
-                    const daysDiff = differenceInDays(new Date(), lastDate);
-                    if (daysDiff > 1) {
-                        // Streak broken
-                        streak.currentStreak = 0;
+                try {
+                    const streak = JSON.parse(stored) as StreakData;
+                    // Check if streak should be reset
+                    if (streak.lastStudyDate) {
+                        const lastDate = parseISO(streak.lastStudyDate);
+                        const daysDiff = differenceInDays(new Date(), lastDate);
+                        if (daysDiff > 1) {
+                            // Streak broken
+                            streak.currentStreak = 0;
+                        }
                     }
+                    set({ streak, isLoading: false });
+                } catch (parseError) {
+                    console.error('Corrupt streak data, resetting:', parseError);
+                    await AsyncStorage.removeItem(STORAGE_KEYS.streak);
+                    set({ isLoading: false });
                 }
-                set({ streak, isLoading: false });
             } else {
                 set({ isLoading: false });
             }
@@ -358,7 +371,14 @@ export const useStudyStatsStore = create<StudyStatsState>((set, get) => ({
         try {
             const saved = await AsyncStorage.getItem(STUDY_STATS_KEY);
             if (saved) {
-                set({ stats: JSON.parse(saved), isLoading: false });
+                try {
+                    const parsed = JSON.parse(saved);
+                    set({ stats: { ...defaultStudyStats, ...parsed }, isLoading: false });
+                } catch (parseError) {
+                    console.error('Corrupt study stats data, resetting:', parseError);
+                    await AsyncStorage.removeItem(STUDY_STATS_KEY);
+                    set({ isLoading: false });
+                }
             } else {
                 set({ isLoading: false });
             }

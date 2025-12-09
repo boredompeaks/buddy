@@ -1,230 +1,246 @@
-// Study Hub Tab Screen
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+// Study Hub Tab Screen - MindVault Modern Redesign
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Brain, FileQuestion, FileText, BarChart3, Sparkles, ChevronRight, Camera, Edit3, GraduationCap } from 'lucide-react-native';
+import { Brain, FileQuestion, FileText, Camera, Edit3, Flame, Trophy } from 'lucide-react-native';
 import { useMemo } from 'react';
-import { useNotesStore, useStudyStatsStore } from '../../src/stores';
+import { LineChart } from 'react-native-gifted-charts'; // Ensure this package is installed
+import { useNotesStore, useStudyStatsStore, useStreakStore } from '../../src/stores';
 import { useThemeColors } from '../../hooks/useThemeColors';
+import GlassLayout from '../../src/components/GlassLayout';
+import GlassCard from '../../src/components/GlassCard';
+import { COLORS } from '../../src/constants';
 
 export default function StudyScreen() {
     const router = useRouter();
     const colors = useThemeColors();
 
-    // Get real data for stats
+    // Stores
+    const streak = useStreakStore(state => state.streak.currentStreak);
     const notes = useNotesStore(state => state.notes);
     const studyStats = useStudyStatsStore(state => state.stats);
     const getAverageScore = useStudyStatsStore(state => state.getAverageScore);
 
-    // Calculate stats from stored data - NOW REAL
-    const stats = useMemo(() => {
-        return {
-            cardsReviewed: studyStats.flashcardsReviewed,
-            quizzesTaken: studyStats.quizzesTaken,
-            avgScore: getAverageScore(),
-        };
-    }, [studyStats, getAverageScore]);
+    const stats = useMemo(() => ({
+        avgScore: getAverageScore(),
+        quizzesTaken: studyStats.quizzesTaken || 0,
+    }), [studyStats, getAverageScore]);
+
+    // Dummy Data for Learning Curve Graph (Replace with real historical data later)
+    const chartData = [
+        { value: 40, label: 'M' },
+        { value: 65, label: 'T' },
+        { value: 50, label: 'W' },
+        { value: 80, label: 'T' },
+        { value: 75, label: 'F' },
+        { value: 90, label: 'S' },
+        { value: 85, label: 'S' },
+    ];
 
     const studyOptions = [
         {
             id: 'flashcards',
             title: 'Flashcards',
-            description: 'Review with spaced repetition',
             icon: Brain,
-            color: colors.primary,
+            color: '#6366f1', // Indigo
             route: '/(tabs)/study/flashcards',
         },
         {
             id: 'quiz',
             title: 'Quiz Mode',
-            description: 'Test your knowledge',
             icon: FileQuestion,
-            color: colors.secondary,
+            color: '#8b5cf6', // Violet
             route: '/(tabs)/study/quiz',
         },
         {
-            id: 'papers',
-            title: 'Practice Papers',
-            description: 'Generate exam papers',
-            icon: FileText,
-            color: colors.accent,
-            route: '/(tabs)/study/paper-generator',
+            id: 'exam',
+            title: 'Exam Mode',
+            icon: Trophy, // Changed to Trophy/Timer placeholder
+            color: '#ec4899', // Pink
+            route: '/(tabs)/study/exam', // Updated route to new Exam Flow
         },
-        {
-            id: 'analytics',
-            title: 'Analytics',
-            description: 'Track your progress',
-            icon: BarChart3,
-            color: '#10b981', // Keep generic green or map to theme success
-            route: '/(tabs)/study/analytics',
-        },
-    ];
-
-    // Additional study tools
-    const advancedTools = [
         {
             id: 'grading',
-            title: 'Answer Grading',
-            description: 'Grade your handwritten answers with AI',
+            title: 'Grader',
             icon: Camera,
+            color: '#10b981', // Emerald
             route: '/(tabs)/study/answer-grading',
-        },
-        {
-            id: 'summary',
-            title: 'AI Summary',
-            description: 'Generate summaries from your notes',
-            icon: Edit3,
-            route: '/modals/ai-chat',
         },
     ];
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-            <StatusBar barStyle={colors.text === '#1e293b' ? 'dark-content' : 'light-content'} />
+        <GlassLayout>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Header */}
+
+                {/* Header with Streak */}
                 <View style={styles.header}>
-                    <Text style={[styles.title, { color: colors.text }]}>Study Hub</Text>
-                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Choose how you want to study</Text>
+                    <View>
+                        <Text style={[styles.title, { color: colors.text }]}>Study Hub</Text>
+                        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Ready to focus?</Text>
+                    </View>
+                    <GlassCard style={styles.streakBadge} intensity={40}>
+                        <Flame size={20} color="#f59e0b" fill="#f59e0b" />
+                        <Text style={[styles.streakText, { color: colors.text }]}>{streak}</Text>
+                    </GlassCard>
                 </View>
 
-                {/* Study Options */}
-                <View style={styles.optionsGrid}>
+                {/* Main Graph Card */}
+                <GlassCard style={styles.chartCard} intensity={25}>
+                    <View style={styles.chartHeader}>
+                        <Text style={[styles.cardTitle, { color: colors.text }]}>Learning Curve</Text>
+                        <Text style={[styles.cardValue, { color: colors.success }]}>+12%</Text>
+                    </View>
+                    <View style={styles.chartContainer}>
+                        <LineChart
+                            data={chartData}
+                            color={colors.primary}
+                            thickness={3}
+                            dataPointsColor={colors.primary}
+                            startFillColor={colors.primary}
+                            endFillColor={colors.primary}
+                            startOpacity={0.4}
+                            endOpacity={0.0}
+                            areaChart
+                            curved
+                            hideRules
+                            hideYAxisText
+                            hideAxesAndRules
+                            height={120}
+                            width={280} // Approx width
+                            adjustToWidth
+                        />
+                    </View>
+                </GlassCard>
+
+                {/* Main Tools Grid */}
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Tools</Text>
+                <View style={styles.grid}>
                     {studyOptions.map((option) => {
                         const Icon = option.icon;
                         return (
-                            <TouchableOpacity
+                            <GlassCard
                                 key={option.id}
-                                style={[styles.optionCard, { backgroundColor: colors.surface }]}
+                                style={styles.gridCard}
                                 onPress={() => router.push(option.route as any)}
                             >
                                 <View style={[styles.iconContainer, { backgroundColor: option.color + '20' }]}>
                                     <Icon size={28} color={option.color} />
                                 </View>
-                                <Text style={[styles.optionTitle, { color: colors.text }]}>{option.title}</Text>
-                                <Text style={[styles.optionDescription, { color: colors.textSecondary }]}>{option.description}</Text>
-                            </TouchableOpacity>
+                                <Text style={[styles.gridTitle, { color: colors.text }]}>{option.title}</Text>
+                            </GlassCard>
                         );
                     })}
                 </View>
 
-                {/* Advanced Tools Section */}
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>AI Tools</Text>
-                {advancedTools.map((tool) => {
-                    const Icon = tool.icon;
-                    return (
-                        <TouchableOpacity
-                            key={tool.id}
-                            style={[styles.toolCard, { backgroundColor: colors.surface }]}
-                            onPress={() => router.push(tool.route as any)}
-                        >
-                            <View style={[styles.toolIcon, { backgroundColor: colors.primary + '20' }]}>
-                                <Icon size={24} color={colors.primary} />
-                            </View>
-                            <View style={styles.toolContent}>
-                                <Text style={[styles.toolTitle, { color: colors.text }]}>{tool.title}</Text>
-                                <Text style={[styles.toolDescription, { color: colors.textSecondary }]}>{tool.description}</Text>
-                            </View>
-                            <ChevronRight size={20} color={colors.textMuted} />
-                        </TouchableOpacity>
-                    );
-                })}
-
-                {/* Quick Stats */}
-                <View style={styles.statsSection}>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Progress</Text>
-                    <View style={styles.statsRow}>
-                        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-                            <Text style={[styles.statValue, { color: colors.primary }]}>{notes.length}</Text>
-                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Notes Created</Text>
-                        </View>
-                        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-                            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.quizzesTaken}</Text>
-                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Quizzes Taken</Text>
-                        </View>
-                        <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-                            <Text style={[styles.statValue, { color: colors.primary }]}>{stats.avgScore}%</Text>
-                            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Avg Score</Text>
-                        </View>
+                {/* Secondary Tools */}
+                <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 20 }]}>Quick Actions</Text>
+                <GlassCard
+                    style={styles.actionRow}
+                    onPress={() => router.push('/(tabs)/study/paper-generator')}
+                >
+                    <View style={[styles.iconCircle, { backgroundColor: COLORS.light.accent + '20' }]}>
+                        <FileText size={20} color={COLORS.light.accent} />
                     </View>
-                </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.actionTitle, { color: colors.text }]}>Generate Paper</Text>
+                        <Text style={[styles.actionSub, { color: colors.textSecondary }]}>Custom practice exams</Text>
+                    </View>
+                </GlassCard>
+
+                <GlassCard
+                    style={[styles.actionRow, { marginTop: 12 }]}
+                    onPress={() => router.push('/modals/ai-chat')}
+                >
+                    <View style={[styles.iconCircle, { backgroundColor: COLORS.light.primary + '20' }]}>
+                        <Edit3 size={20} color={COLORS.light.primary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.actionTitle, { color: colors.text }]}>AI Summary</Text>
+                        <Text style={[styles.actionSub, { color: colors.textSecondary }]}>Summarize your notes</Text>
+                    </View>
+                </GlassCard>
+
+                <View style={{ height: 100 }} />
             </ScrollView>
-        </SafeAreaView>
+        </GlassLayout>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
     content: { padding: 20 },
-    header: { marginBottom: 24 },
-    title: { fontSize: 28, fontWeight: '800' },
-    subtitle: { fontSize: 15, marginTop: 4 },
-    optionsGrid: {
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    title: { fontSize: 32, fontWeight: '800' },
+    subtitle: { fontSize: 16, marginTop: 4 },
+    streakBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        gap: 6,
+        borderRadius: 20,
+    },
+    streakText: { fontSize: 18, fontWeight: '700' },
+
+    chartCard: {
+        padding: 20,
+        marginBottom: 30,
+        borderRadius: 24,
+    },
+    chartHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    cardTitle: { fontSize: 18, fontWeight: '600' },
+    cardValue: { fontSize: 16, fontWeight: '700' },
+    chartContainer: {
+        marginTop: 10,
+        alignItems: 'center',
+        overflow: 'hidden', // Clip chart within card
+    },
+
+    sectionTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
+    grid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 12,
-        marginBottom: 24,
     },
-    optionCard: {
-        width: '48%', // Approx half with gap
+    gridCard: {
+        width: '48%',
         padding: 20,
-        borderRadius: 20,
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-        marginBottom: 4, // Spacing for shadow
+        aspectRatio: 1, // Square cards
+        justifyContent: 'center',
     },
     iconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
+        width: 60,
+        height: 60,
+        borderRadius: 30,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
     },
-    optionTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6, textAlign: 'center' },
-    optionDescription: { fontSize: 12, textAlign: 'center', lineHeight: 16 },
-    // Tool card styles
-    toolCard: {
+    gridTitle: { fontSize: 16, fontWeight: '600' },
+
+    actionRow: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
-        borderRadius: 16,
-        marginBottom: 12,
         gap: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
+        borderRadius: 20,
     },
-    toolIcon: {
+    iconCircle: {
         width: 48,
         height: 48,
-        borderRadius: 14,
+        borderRadius: 24,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    toolContent: { flex: 1 },
-    toolTitle: { fontSize: 16, fontWeight: '600' },
-    toolDescription: { fontSize: 13, marginTop: 2 },
-    statsSection: { marginTop: 12 },
-    sectionTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-    statsRow: { flexDirection: 'row', gap: 12 },
-    statCard: {
-        flex: 1,
-        padding: 16,
-        borderRadius: 16,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    statValue: { fontSize: 24, fontWeight: '700' },
-    statLabel: { fontSize: 11, marginTop: 4, textAlign: 'center', fontWeight: '500' },
+    actionTitle: { fontSize: 16, fontWeight: '600' },
+    actionSub: { fontSize: 13 },
 });

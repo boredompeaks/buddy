@@ -30,6 +30,7 @@ export interface FlashcardDeck {
 interface FlashcardState {
     decks: FlashcardDeck[];
     isLoading: boolean;
+    error: string | null;
     loadDecks: () => Promise<void>;
     getDeckByNoteId: (noteId: string) => FlashcardDeck | undefined;
     saveDeck: (noteId: string, noteTitle: string, subject: string, cards: { front: string; back: string }[]) => Promise<FlashcardDeck>;
@@ -37,26 +38,55 @@ interface FlashcardState {
     recordStudySession: (deckId: string) => Promise<void>;
     deleteDeck: (deckId: string) => Promise<void>;
     getDeckStats: (deckId: string) => { mastered: number; learning: number; new: number };
+    getShuffledCards: (deckId: string) => FlashcardCard[];
+    clearError: () => void;
+}
+
+// Fisher-Yates shuffle for card randomization
+function shuffleArray<T>(array: T[]): T[] {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
 }
 
 export const useFlashcardStore = create<FlashcardState>((set, get) => ({
     decks: [],
     isLoading: false,
+    error: null,
 
     loadDecks: async () => {
-        set({ isLoading: true });
+        set({ isLoading: true, error: null });
         try {
             const saved = await AsyncStorage.getItem(FLASHCARD_DECKS_KEY);
             if (saved) {
-                set({ decks: JSON.parse(saved), isLoading: false });
+                try {
+                    const parsed = JSON.parse(saved);
+                    // Validate it's an array
+                    if (Array.isArray(parsed)) {
+                        set({ decks: parsed, isLoading: false });
+                    } else {
+                        console.error('Flashcard data is not an array, resetting');
+                        await AsyncStorage.removeItem(FLASHCARD_DECKS_KEY);
+                        set({ decks: [], isLoading: false, error: 'Data was corrupted and has been reset.' });
+                    }
+                } catch (parseError) {
+                    console.error('Failed to parse flashcard decks, resetting:', parseError);
+                    await AsyncStorage.removeItem(FLASHCARD_DECKS_KEY);
+                    set({ decks: [], isLoading: false, error: 'Data was corrupted and has been reset.' });
+                }
             } else {
                 set({ isLoading: false });
             }
         } catch (error) {
             console.error('Failed to load flashcard decks:', error);
-            set({ isLoading: false });
+            set({ isLoading: false, error: 'Failed to load flashcard decks.' });
         }
     },
+
+    clearError: () => set({ error: null }),
 
     getDeckByNoteId: (noteId: string) => {
         return get().decks.find(d => d.noteId === noteId);
@@ -160,7 +190,6 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
         const deck = get().decks.find(d => d.id === deckId);
         if (!deck) return { mastered: 0, learning: 0, new: 0 };
 
-        const now = Date.now();
         let mastered = 0, learning = 0, newCards = 0;
 
         deck.cards.forEach(card => {
@@ -175,4 +204,11 @@ export const useFlashcardStore = create<FlashcardState>((set, get) => ({
 
         return { mastered, learning, new: newCards };
     },
+
+    getShuffledCards: (deckId: string) => {
+        const deck = get().decks.find(d => d.id === deckId);
+        if (!deck) return [];
+        return shuffleArray(deck.cards);
+    },
 }));
+

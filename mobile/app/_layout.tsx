@@ -63,7 +63,7 @@ export default function RootLayout() {
                     screenOptions={{
                         headerShown: false,
                         animation: 'slide_from_right',
-                        contentStyle: { backgroundColor: COLORS.light.background },
+                        contentStyle: { backgroundColor: '#0f172a' }, // Deep Midnight Blue
                     }}
                 >
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

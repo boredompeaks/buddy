@@ -1,348 +1,292 @@
-// AI Chat Modal - Doubt solving and study assistance
-import { useState, useRef, useCallback } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
-import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Send, Sparkles, User, Copy, Check } from 'lucide-react-native';
+// Enhanced AI Chat Modal - MindVault Modern with Specific Error Messages
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { Send, X, Sparkles, User, Copy, Check, Bot } from 'lucide-react-native';
+import Animated, { FadeInUp } from 'react-native-reanimated';
+import Markdown from 'react-native-markdown-display';
+
+import GlassLayout from '../../src/components/GlassLayout';
+import GlassCard from '../../src/components/GlassCard';
+import { useThemeColors } from '../../src/hooks/useThemeColors';
+import { useHaptics } from '../../src/hooks/useHaptics';
 import { useNotesStore } from '../../src/stores';
 import { chatWithAI } from '../../src/services/ai';
-import { COLORS } from '../../src/constants';
 import { ChatMessage } from '../../src/types';
-import Markdown from 'react-native-markdown-display';
 import * as Clipboard from 'expo-clipboard';
 
-export default function AIChatModal() {
-    const { noteId } = useLocalSearchParams<{ noteId?: string }>();
-    const router = useRouter();
-    const flatListRef = useRef<FlatList<ChatMessage>>(null);
+// Error type detection helper
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+        const msg = error.message.toLowerCase();
 
+        // API key errors
+        if (msg.includes('api key') || msg.includes('not configured') || msg.includes('unauthorized')) {
+            return "⚠️ API key not configured. Please add your API key in Settings.";
+        }
+
+        // Network errors
+        if (msg.includes('network') || msg.includes('fetch') || msg.includes('connection') || msg.includes('timeout')) {
+            return "📶 Network error. Please check your internet connection and try again.";
+        }
+
+        // Rate limit
+        if (msg.includes('rate limit') || msg.includes('too many requests')) {
+            return "⏳ Too many requests. Please wait a moment and try again.";
+        }
+
+        // Server errors
+        if (msg.includes('500') || msg.includes('server') || msg.includes('unavailable')) {
+            return "🔧 AI service is temporarily unavailable. Please try again later.";
+        }
+
+        // Return the actual error if it's descriptive
+        if (error.message.length > 10 && error.message.length < 200) {
+            return `❌ ${error.message}`;
+        }
+    }
+
+    return "Sorry, something went wrong. Please try again.";
+}
+
+export default function AIChatModal() {
+    const router = useRouter();
+    const colors = useThemeColors();
+    const haptics = useHaptics();
+    const { noteId } = useLocalSearchParams<{ noteId?: string }>();
+    const flatListRef = useRef<FlatList>(null);
+
+    // Get note context
     const notes = useNotesStore(state => state.notes);
     const note = noteId ? notes.find(n => n.id === noteId) : null;
 
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
-    // Race condition prevention: track active requests count and latest request ID
-    const activeRequestsRef = useRef(0);
-    const latestRequestIdRef = useRef(0);
-    const [isLoading, setIsLoading] = useState(false);
+    // Context message on init
+    useEffect(() => {
+        if (messages.length === 0) {
+            setMessages([{
+                id: 'init',
+                role: 'assistant',
+                text: note
+                    ? `Hi! Ask me anything about "${note.title}".`
+                    : "I'm your MindVault AI tutor. How can I help you study today?",
+                timestamp: Date.now()
+            }]);
+        }
+    }, [note]);
 
-    const handleSend = useCallback(async () => {
-        const trimmedInput = input.trim();
-        if (!trimmedInput) return;
+    const handleSend = async () => {
+        const text = input.trim();
+        if (!text || isLoading) return;
 
-        // Prevent double-tap while loading
-        if (activeRequestsRef.current > 0) return;
-
-        const requestId = ++latestRequestIdRef.current;
-        activeRequestsRef.current++;
-
-        const userMessage: ChatMessage = {
-            id: `user-${Date.now()}-${requestId}`,
+        const userMsg: ChatMessage = {
+            id: Date.now().toString(),
             role: 'user',
-            text: trimmedInput,
+            text: text,
             timestamp: Date.now(),
-            noteId: noteId,
+            noteId
         };
 
-        setMessages(prev => [...prev, userMessage]);
+        setMessages(prev => [...prev, userMsg]);
         setInput('');
         setIsLoading(true);
+        haptics.selection();
 
         try {
             const response = await chatWithAI(
-                [...messages, userMessage],
+                [...messages.filter(m => m.id !== 'init'), userMsg],
                 note?.content,
-                note?.title // Pass note title for context-aware grounding
+                note?.title
             );
 
-
-            // Only update if this is still the latest request
-            if (requestId === latestRequestIdRef.current) {
-                const assistantMessage: ChatMessage = {
-                    id: `assistant-${Date.now()}-${requestId}`,
-                    role: 'assistant',
-                    text: response || 'I received an empty response. Please try again.',
-                    timestamp: Date.now(),
-                    noteId: noteId,
-                };
-                setMessages(prev => [...prev, assistantMessage]);
-            }
+            const aiMsg: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                text: response || "I'm having trouble thinking right now.",
+                timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, aiMsg]);
+            haptics.success();
         } catch (error) {
-            // Only show error if this is still the latest request
-            if (requestId === latestRequestIdRef.current) {
-                const errorText = error instanceof Error ? error.message : 'Unknown error occurred';
-                const errorMessage: ChatMessage = {
-                    id: `error-${Date.now()}-${requestId}`,
-                    role: 'assistant',
-                    text: `Sorry, I encountered an error: ${errorText}. Please check your API key in Settings and try again.`,
-                    timestamp: Date.now(),
-                };
-                setMessages(prev => [...prev, errorMessage]);
-            }
+            const errorMessage = getErrorMessage(error);
+            const errMsg: ChatMessage = {
+                id: Date.now().toString(),
+                role: 'assistant',
+                text: errorMessage,
+                timestamp: Date.now()
+            };
+            setMessages(prev => [...prev, errMsg]);
+            haptics.error();
         } finally {
-            activeRequestsRef.current--;
-            // Only disable loading when ALL requests are complete
-            if (activeRequestsRef.current === 0) {
-                setIsLoading(false);
-            }
+            setIsLoading(false);
         }
-    }, [input, messages, note?.content, noteId]);
+    };
 
     const handleCopy = async (text: string, id: string) => {
         await Clipboard.setStringAsync(text);
         setCopiedId(id);
         setTimeout(() => setCopiedId(null), 2000);
+        haptics.selection();
     };
 
-    const quickPrompts = [
-        'Explain this in simple terms',
-        'Give me 5 quiz questions',
-        'Summarize the key points',
-        'What are the main formulas?',
-    ];
-
     return (
-        <SafeAreaView style={styles.container}>
+        <GlassLayout>
             <Stack.Screen options={{ headerShown: false }} />
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <View style={styles.aiIcon}>
-                        <Sparkles size={20} color="#fff" />
+                {/* Header */}
+                <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.1)' }]}>
+                    <View style={styles.headerLeft}>
+                        <View style={[styles.botIcon, { backgroundColor: colors.primary }]}>
+                            <Sparkles size={20} color="#fff" />
+                        </View>
+                        <View>
+                            <Text style={[styles.headerTitle, { color: colors.text }]}>AI Tutor</Text>
+                            {note && <Text style={[styles.headerStatus, { color: colors.textSecondary }]}>{note.title}</Text>}
+                        </View>
                     </View>
-                    <View>
-                        <Text style={styles.headerTitle}>AI Study Assistant</Text>
-                        {note && <Text style={styles.headerSubtitle}>Context: {note.title}</Text>}
-                    </View>
+                    <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+                        <X size={24} color={colors.text} />
+                    </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-                    <X size={24} color={COLORS.light.text} />
-                </TouchableOpacity>
-            </View>
 
-            {/* Messages */}
-            <FlatList
-                ref={flatListRef}
-                data={messages}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.messagesList}
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
-                ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <Sparkles size={48} color={COLORS.light.primary} />
-                        <Text style={styles.emptyTitle}>Ask me anything!</Text>
-                        <Text style={styles.emptySubtitle}>
-                            {note ? "I'll help you understand your notes better" : "I'm here to help you study"}
-                        </Text>
+                {/* Messages */}
+                <FlatList
+                    ref={flatListRef}
+                    data={messages}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={styles.msgList}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                    renderItem={({ item }) => {
+                        const isUser = item.role === 'user';
+                        return (
+                            <Animated.View
+                                entering={FadeInUp.springify()}
+                                style={[
+                                    styles.msgContainer,
+                                    isUser ? styles.msgRight : styles.msgLeft
+                                ]}
+                            >
+                                {!isUser && (
+                                    <View style={[styles.avatarSmall, { backgroundColor: colors.surfaceHighlight }]}>
+                                        <Bot size={16} color={colors.primary} />
+                                    </View>
+                                )}
 
-                        {/* Quick Prompts */}
-                        <View style={styles.quickPrompts}>
-                            {quickPrompts.map((prompt, index) => (
-                                <TouchableOpacity
-                                    key={index}
-                                    style={styles.quickPrompt}
-                                    onPress={() => setInput(prompt)}
-                                >
-                                    <Text style={styles.quickPromptText}>{prompt}</Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
-                }
-                renderItem={({ item }) => (
-                    <View style={[styles.messageContainer, item.role === 'user' && styles.userMessageContainer]}>
-                        <View style={[styles.avatar, item.role === 'user' && styles.userAvatar]}>
-                            {item.role === 'user' ? (
-                                <User size={16} color="#fff" />
-                            ) : (
-                                <Sparkles size={16} color="#fff" />
-                            )}
-                        </View>
-                        <View style={[styles.messageBubble, item.role === 'user' && styles.userBubble]}>
-                            {item.role === 'assistant' ? (
-                                <Markdown style={markdownStyles}>{item.text}</Markdown>
-                            ) : (
-                                <Text style={styles.userMessageText}>{item.text}</Text>
-                            )}
-
-                            {item.role === 'assistant' && (
-                                <TouchableOpacity
-                                    style={styles.copyButton}
-                                    onPress={() => handleCopy(item.text, item.id)}
-                                >
-                                    {copiedId === item.id ? (
-                                        <Check size={14} color={COLORS.light.success} />
+                                <View style={[
+                                    styles.bubble,
+                                    isUser ? { backgroundColor: colors.primary } : { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }
+                                ]}>
+                                    {isUser ? (
+                                        <Text style={[styles.msgText, { color: '#fff' }]}>{item.text}</Text>
                                     ) : (
-                                        <Copy size={14} color={COLORS.light.textMuted} />
+                                        <Markdown style={{
+                                            ...markdownStyles,
+                                            body: { ...markdownStyles.body, color: colors.text },
+                                            code_block: { ...markdownStyles.code_block, backgroundColor: 'rgba(0,0,0,0.3)' }
+                                        }}>
+                                            {item.text}
+                                        </Markdown>
                                     )}
-                                </TouchableOpacity>
-                            )}
-                        </View>
+
+                                    {!isUser && (
+                                        <TouchableOpacity onPress={() => handleCopy(item.text, item.id)} style={styles.copyBtn}>
+                                            {copiedId === item.id ? <Check size={12} color={colors.success} /> : <Copy size={12} color={colors.textSecondary} />}
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+
+                                {isUser && (
+                                    <View style={[styles.avatarSmall, { backgroundColor: colors.primary + '20' }]}>
+                                        <User size={16} color={colors.primary} />
+                                    </View>
+                                )}
+                            </Animated.View>
+                        );
+                    }}
+                />
+
+                {/* Typing Indicator */}
+                {isLoading && (
+                    <View style={styles.typingIndicator}>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={[styles.typingText, { color: colors.textSecondary }]}>Thinking...</Text>
                     </View>
                 )}
-            />
 
-            {/* Loading indicator */}
-            {isLoading && (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color={COLORS.light.primary} />
-                    <Text style={styles.loadingText}>Thinking...</Text>
-                </View>
-            )}
-
-            {/* Input */}
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={10}
-            >
-                <View style={styles.inputContainer}>
+                {/* Input Area */}
+                <GlassCard style={styles.inputArea} intensity={50}>
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, { color: colors.text }]}
+                        placeholder="Ask a question..."
+                        placeholderTextColor={colors.textSecondary}
                         value={input}
                         onChangeText={setInput}
-                        placeholder="Ask a question..."
-                        placeholderTextColor={COLORS.light.textMuted}
                         multiline
-                        maxLength={2000}
-                        onSubmitEditing={handleSend}
+                        maxLength={1000}
                     />
                     <TouchableOpacity
-                        style={[styles.sendButton, (!input.trim() || isLoading) && styles.sendButtonDisabled]}
+                        style={[styles.sendBtn, { backgroundColor: input.trim() ? colors.primary : colors.surfaceHighlight }]}
                         onPress={handleSend}
                         disabled={!input.trim() || isLoading}
                     >
                         <Send size={20} color="#fff" />
                     </TouchableOpacity>
-                </View>
+                </GlassCard>
+
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </GlassLayout>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.light.border,
-        backgroundColor: COLORS.light.surface,
-    },
-    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    aiIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: COLORS.light.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.light.text },
-    headerSubtitle: { fontSize: 12, color: COLORS.light.textSecondary, marginTop: 2 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1 },
+    headerLeft: { flexDirection: 'row', gap: 12, alignItems: 'center' },
+    botIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
+    headerTitle: { fontSize: 18, fontWeight: '700' },
+    headerStatus: { fontSize: 12, fontWeight: '600' },
     closeButton: { padding: 8 },
-    messagesList: { padding: 16, paddingBottom: 100 },
-    emptyState: { alignItems: 'center', paddingVertical: 60, gap: 12 },
-    emptyTitle: { fontSize: 20, fontWeight: '700', color: COLORS.light.text },
-    emptySubtitle: { fontSize: 14, color: COLORS.light.textSecondary, textAlign: 'center' },
-    quickPrompts: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 20 },
-    quickPrompt: {
-        backgroundColor: COLORS.light.surface,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: COLORS.light.border,
-    },
-    quickPromptText: { fontSize: 13, color: COLORS.light.textSecondary },
-    messageContainer: { flexDirection: 'row', marginBottom: 16, gap: 10 },
-    userMessageContainer: { flexDirection: 'row-reverse' },
-    avatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: COLORS.light.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    userAvatar: { backgroundColor: COLORS.light.secondary },
-    messageBubble: {
-        flex: 1,
-        backgroundColor: COLORS.light.surface,
-        padding: 14,
-        borderRadius: 16,
-        borderTopLeftRadius: 4,
-        maxWidth: '85%',
-    },
-    userBubble: {
-        backgroundColor: COLORS.light.primary,
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 4,
-    },
-    userMessageText: { color: '#fff', fontSize: 15, lineHeight: 22 },
-    copyButton: {
-        alignSelf: 'flex-end',
-        marginTop: 8,
-        padding: 4,
-    },
-    loadingContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 12,
-        gap: 8,
-    },
-    loadingText: { fontSize: 13, color: COLORS.light.textSecondary },
-    inputContainer: {
-        flexDirection: 'row',
-        padding: 16,
-        gap: 12,
-        backgroundColor: COLORS.light.surface,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.light.border,
-    },
-    input: {
-        flex: 1,
-        backgroundColor: COLORS.light.surfaceVariant,
-        borderRadius: 20,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        fontSize: 15,
-        color: COLORS.light.text,
-        maxHeight: 100,
-    },
-    sendButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: COLORS.light.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    sendButtonDisabled: { backgroundColor: COLORS.light.textMuted },
+
+    msgList: { padding: 16, gap: 16 },
+    msgContainer: { flexDirection: 'row', gap: 8, maxWidth: '100%', alignItems: 'flex-end' },
+    msgLeft: { alignSelf: 'flex-start' },
+    msgRight: { alignSelf: 'flex-end', justifyContent: 'flex-end' },
+
+    bubble: { padding: 12, borderRadius: 20, maxWidth: '85%', minWidth: 100 },
+    msgText: { fontSize: 16, lineHeight: 22 },
+    copyBtn: { position: 'absolute', bottom: 8, right: 8, padding: 4 },
+
+    avatarSmall: { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+
+    typingIndicator: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16, marginLeft: 16 },
+    typingText: { fontSize: 12 },
+
+    inputArea: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 12, borderRadius: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+    input: { flex: 1, maxHeight: 100, fontSize: 16, padding: 8 },
+    sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 });
 
 const markdownStyles = {
-    body: { color: COLORS.light.text, fontSize: 15, lineHeight: 22 },
+    body: { fontSize: 15, lineHeight: 22 },
     heading1: { fontSize: 18, fontWeight: '700' as const, marginVertical: 8 },
     heading2: { fontSize: 16, fontWeight: '600' as const, marginVertical: 6 },
     strong: { fontWeight: '700' as const },
     code_inline: {
-        backgroundColor: COLORS.light.surfaceVariant,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         paddingHorizontal: 4,
         borderRadius: 4,
         fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     },
     code_block: {
-        backgroundColor: COLORS.light.surfaceVariant,
+        backgroundColor: 'rgba(255,255,255,0.1)',
         padding: 12,
         borderRadius: 8,
         fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
         fontSize: 13,
     },
 };
-

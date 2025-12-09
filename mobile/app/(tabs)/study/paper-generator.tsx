@@ -256,18 +256,32 @@ export default function PaperGeneratorScreen() {
                                 onPress={async () => {
                                     haptics.medium();
                                     try {
+                                        // Convert markdown to basic HTML
+                                        const convertMarkdownToHtml = (md: string): string => {
+                                            return md
+                                                // Headers
+                                                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                                                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                                                .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+                                                // Bold
+                                                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                                                // Line breaks
+                                                .replace(/\n/g, '<br/>');
+                                        };
+
                                         const html = `
                                             <html>
                                             <head>
                                                 <style>
                                                     body { font-family: Georgia, serif; padding: 40px; line-height: 1.6; }
-                                                    h1 { color: #4f46e5; border-bottom: 2px solid #4f46e5; }
+                                                    h1 { color: #4f46e5; border-bottom: 2px solid #4f46e5; padding-bottom: 10px; }
                                                     h2 { color: #1e293b; margin-top: 20px; }
+                                                    h3 { color: #334155; margin-top: 15px; }
                                                     strong { color: #4f46e5; }
                                                 </style>
                                             </head>
                                             <body>
-                                                ${generatedPaper.replace(/\n/g, '<br/>').replace(/#{1,}/g, '<h2>')}
+                                                ${convertMarkdownToHtml(generatedPaper)}
                                             </body>
                                             </html>
                                         `;

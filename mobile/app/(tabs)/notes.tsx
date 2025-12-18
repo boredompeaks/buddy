@@ -72,10 +72,20 @@ export default function NotesScreen() {
         router.push({ pathname: '/note/[id]', params: { id } });
     };
 
-    const handleCreateNote = async () => {
-        const note = await addNote({ title: 'New Note', content: '', subject: selectedSubject || 'General' });
-        handleNotePress(note.id);
-    };
+    // Prevent multiple note creation on rapid taps
+    const [isCreating, setIsCreating] = useState(false);
+
+    const handleCreateNote = useCallback(async () => {
+        if (isCreating) return; // Prevent multi-click
+        setIsCreating(true);
+        try {
+            const note = await addNote({ title: 'New Note', content: '', subject: selectedSubject || 'General' });
+            router.push({ pathname: '/note/[id]', params: { id: note.id } });
+        } finally {
+            // Reset after a delay to allow navigation
+            setTimeout(() => setIsCreating(false), 1000);
+        }
+    }, [addNote, selectedSubject, isCreating, router]);
 
     const renderItem = ({ item, index }: { item: any, index: number }) => (
         <Animated.View

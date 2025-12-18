@@ -2,16 +2,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Vibration, AppState } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { X, Play, Pause, RotateCcw, Coffee, BookOpen, CheckCircle2 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { X, Play, Pause, RotateCcw, Coffee, BookOpen, CheckCircle2, ArrowLeft } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOut, useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { useHaptics } from '../../src/hooks/useHaptics';
 import { useStudyStatsStore, useStreakStore } from '../../src/stores';
 import { SUBJECTS } from '../../src/constants';
+import GlassLayout from '../../src/components/GlassLayout';
 
 interface StudyTimerProps {
-    visible: boolean;
-    onClose: () => void;
+    visible?: boolean;
+    onClose?: () => void;
     initialSubject?: string;
 }
 
@@ -23,7 +25,8 @@ const TIMER_PRESETS = {
     longBreak: 15 * 60, // 15 minutes
 };
 
-export default function StudyTimerModal({ visible, onClose, initialSubject }: StudyTimerProps) {
+export default function StudyTimerModal({ visible = true, onClose, initialSubject }: StudyTimerProps) {
+    const router = useRouter();
     const colors = useThemeColors();
     const haptics = useHaptics();
     const recordStudyDay = useStreakStore(state => state.recordStudyDay);
@@ -142,15 +145,25 @@ export default function StudyTimerModal({ visible, onClose, initialSubject }: St
 
     const CurrentIcon = modeConfig[mode].icon;
 
+    // Handle close - use prop if provided, otherwise use router
+    const handleClose = useCallback(() => {
+        if (onClose) {
+            onClose();
+        } else {
+            router.back();
+        }
+    }, [onClose, router]);
+
     return (
-        <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+        <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
             <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
                 {/* Header */}
                 <View style={styles.header}>
-                    <Text style={[styles.title, { color: colors.text }]}>Study Timer</Text>
-                    <TouchableOpacity onPress={onClose} style={[styles.closeButton, { backgroundColor: colors.surface }]}>
-                        <X size={24} color={colors.textMuted} />
+                    <TouchableOpacity onPress={handleClose} style={[styles.closeButton, { backgroundColor: colors.surface }]}>
+                        <ArrowLeft size={24} color={colors.text} />
                     </TouchableOpacity>
+                    <Text style={[styles.title, { color: colors.text }]}>Study Timer</Text>
+                    <View style={{ width: 40 }} />
                 </View>
 
                 {/* Mode Selector */}

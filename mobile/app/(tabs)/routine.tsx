@@ -2,10 +2,11 @@
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, StatusBar } from 'react-native';
 import { useState, useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, CheckCircle2, Circle, Trash2, Calendar, Target, Flame, Camera, X } from 'lucide-react-native';
+import { Plus, CheckCircle2, Circle, Trash2, Calendar, Target, Flame, Camera, X, Clock, ChevronRight } from 'lucide-react-native';
 import { useTasksStore, useExamStore, useStreakStore } from '../../src/stores';
-import { useThemeColors } from '../../hooks/useThemeColors';
+import { useThemeColors } from '../../src/hooks/useThemeColors';
 import { format, differenceInDays } from 'date-fns';
+import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { parseExamSchedule } from '../../src/services/ai';
 
@@ -16,20 +17,21 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export default function RoutineScreen() {
+    const router = useRouter();
     const colors = useThemeColors();
     const [newTaskText, setNewTaskText] = useState('');
     const [isScanning, setIsScanning] = useState(false);
-    
+
     const tasks = useTasksStore(state => state.tasks);
     const activeCategory = useTasksStore(state => state.activeCategory);
     const setActiveCategory = useTasksStore(state => state.setActiveCategory);
     const addTask = useTasksStore(state => state.addTask);
     const toggleTask = useTasksStore(state => state.toggleTask);
     const deleteTask = useTasksStore(state => state.deleteTask);
-    
+
     const exams = useExamStore(state => state.exams);
     const addExam = useExamStore(state => state.addExam);
-    
+
     const streak = useStreakStore(state => state.streak);
 
     const filteredTasks = useMemo(() => {
@@ -71,7 +73,7 @@ export default function RoutineScreen() {
             if (!result.canceled && result.assets[0].base64) {
                 setIsScanning(true);
                 const timetable = await parseExamSchedule(`data:image/jpeg;base64,${result.assets[0].base64}`);
-                
+
                 // Add exams
                 let addedCount = 0;
                 for (const exam of timetable) {
@@ -121,6 +123,21 @@ export default function RoutineScreen() {
                     </View>
                 </View>
 
+                {/* Daily Planner Card */}
+                <TouchableOpacity
+                    style={[styles.plannerCard, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}
+                    onPress={() => router.push('/routine/daily-planner')}
+                >
+                    <View style={[styles.plannerIcon, { backgroundColor: colors.primary }]}>
+                        <Clock size={24} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={[styles.plannerTitle, { color: colors.text }]}>Daily Planner</Text>
+                        <Text style={[styles.plannerSub, { color: colors.textSecondary }]}>AI-generated study schedule</Text>
+                    </View>
+                    <ChevronRight size={20} color={colors.primary} />
+                </TouchableOpacity>
+
                 {/* Category Tabs */}
                 <View style={[styles.tabs, { backgroundColor: colors.surface }]}>
                     {categories.map(cat => (
@@ -130,7 +147,7 @@ export default function RoutineScreen() {
                             onPress={() => setActiveCategory(cat)}
                         >
                             <Text style={[
-                                styles.tabText, 
+                                styles.tabText,
                                 { color: activeCategory === cat ? '#fff' : colors.textSecondary }
                             ]}>
                                 {cat.charAt(0).toUpperCase() + cat.slice(1)}
@@ -173,7 +190,7 @@ export default function RoutineScreen() {
                                 </TouchableOpacity>
                                 <View style={styles.taskContent}>
                                     <Text style={[
-                                        styles.taskText, 
+                                        styles.taskText,
                                         { color: colors.text },
                                         task.completed && { textDecorationLine: 'line-through', color: colors.textMuted }
                                     ]}>
@@ -199,7 +216,7 @@ export default function RoutineScreen() {
                 <View style={styles.examsSection}>
                     <View style={styles.sectionHeader}>
                         <Text style={[styles.sectionTitle, { color: colors.text }]}>Exam Schedule</Text>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.scanButton, { backgroundColor: colors.secondary + '20' }]}
                             onPress={handleScanTimetable}
                             disabled={isScanning}
@@ -214,9 +231,9 @@ export default function RoutineScreen() {
                             )}
                         </TouchableOpacity>
                     </View>
-                    
+
                     {exams.length === 0 ? (
-                         <View style={[styles.emptyState, { marginTop: 0, paddingVertical: 20 }]}>
+                        <View style={[styles.emptyState, { marginTop: 0, paddingVertical: 20 }]}>
                             <Calendar size={32} color={colors.textMuted} />
                             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No exams scheduled</Text>
                         </View>
@@ -361,4 +378,24 @@ const styles = StyleSheet.create({
     examCountdown: { alignItems: 'center' },
     countdownNumber: { fontSize: 20, fontWeight: '700' },
     countdownLabel: { fontSize: 10 },
+
+    // Daily Planner Card
+    plannerCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 20,
+        gap: 14,
+        borderWidth: 1,
+    },
+    plannerIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    plannerTitle: { fontSize: 16, fontWeight: '700' },
+    plannerSub: { fontSize: 13, marginTop: 2 },
 });

@@ -8,7 +8,7 @@ import GlassLayout from '../../../../src/components/GlassLayout';
 import GlassCard from '../../../../src/components/GlassCard';
 import { useThemeColors } from '../../../../src/hooks/useThemeColors';
 import { useHaptics } from '../../../../src/hooks/useHaptics';
-import { FileText } from 'lucide-react-native';
+
 
 export default function ExamReviewScreen() {
     const router = useRouter();
@@ -16,8 +16,7 @@ export default function ExamReviewScreen() {
     const haptics = useHaptics();
     const params = useLocalSearchParams();
 
-    // Default to 'text' mode, can switch to 'handwritten'
-    const [mode, setMode] = useState<'text' | 'handwritten'>('text');
+    // Mode selection is now handled in the modal
     const [acknowledged, setAcknowledged] = useState(false);
 
     const subject = params.subject as string || 'Mathematics';
@@ -30,10 +29,10 @@ export default function ExamReviewScreen() {
         }
         haptics.success();
 
-        // Navigate to the actual Exam Lockdown screen
+        // Open the attempt mode selection modal
         router.push({
-            pathname: '/study/exam/lockdown',
-            params: { mode, subject, duration }
+            pathname: '/modals/exam-attempt' as any,
+            params: { subject, duration }
         });
     };
 
@@ -64,44 +63,7 @@ export default function ExamReviewScreen() {
                     </GlassCard>
                 </Animated.View>
 
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>Choose Attempt Mode</Text>
 
-                {/* Mode Selection */}
-                <View style={styles.modeContainer}>
-                    <Animated.View entering={FadeInDown.delay(200).springify()} style={{ flex: 1 }}>
-                        <TouchableOpacity onPress={() => { setMode('text'); haptics.selection(); }}>
-                            <GlassCard
-                                style={[
-                                    styles.modeCard,
-                                    mode === 'text' && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
-                                ]}
-                            >
-                                <FileText size={32} color={mode === 'text' ? colors.primary : colors.textSecondary} />
-                                <Text style={[styles.modeTitle, { color: colors.text }]}>Type Answers</Text>
-                                <Text style={[styles.modeDesc, { color: colors.textSecondary }]}>
-                                    Smart accordion layout. Type directly in app. Auto-submit.
-                                </Text>
-                            </GlassCard>
-                        </TouchableOpacity>
-                    </Animated.View>
-
-                    <Animated.View entering={FadeInDown.delay(300).springify()} style={{ flex: 1 }}>
-                        <TouchableOpacity onPress={() => { setMode('handwritten'); haptics.selection(); }}>
-                            <GlassCard
-                                style={[
-                                    styles.modeCard,
-                                    mode === 'handwritten' && { borderColor: colors.primary, backgroundColor: colors.primary + '20' }
-                                ]}
-                            >
-                                <PenTool size={32} color={mode === 'handwritten' ? colors.primary : colors.textSecondary} />
-                                <Text style={[styles.modeTitle, { color: colors.text }]}>Handwritten</Text>
-                                <Text style={[styles.modeDesc, { color: colors.textSecondary }]}>
-                                    View questions only. Write on paper. Upload photos at end.
-                                </Text>
-                            </GlassCard>
-                        </TouchableOpacity>
-                    </Animated.View>
-                </View>
 
                 {/* Lockdown Warning */}
                 <Animated.View entering={FadeInDown.delay(400).springify()}>

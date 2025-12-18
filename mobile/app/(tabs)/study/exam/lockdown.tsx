@@ -81,13 +81,15 @@ export default function ExamLockdownScreen() {
             haptics.success();
 
             // Navigate to answer grading with params
+            // Navigate to Success Modal then to Grading
+            const nextPath = `/study/answer-grading?subject=${encodeURIComponent(subject)}&questionsAttempted=${questionsAttempted}&totalQuestions=${EXAM_QUESTIONS.length}&timeTaken=${result.timeTaken}`;
+
             router.replace({
-                pathname: '/study/answer-grading',
+                pathname: '/modals/success',
                 params: {
-                    subject,
-                    questionsAttempted: questionsAttempted.toString(),
-                    totalQuestions: EXAM_QUESTIONS.length.toString(),
-                    timeTaken: result.timeTaken.toString(),
+                    title: 'Exam Submitted!',
+                    message: 'Your answers have been securely saved. Let\'s see how you performed.',
+                    nextRoute: nextPath
                 }
             });
         } catch (error) {

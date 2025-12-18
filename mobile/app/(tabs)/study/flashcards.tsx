@@ -32,6 +32,7 @@ export default function FlashcardsScreen() {
     const router = useRouter();
     const colors = useThemeColors();
     const haptics = useHaptics();
+    const styles = React.useMemo(() => makeStyles(colors), [colors]);
 
     // Stores
     const notes = useNotesStore(state => state.notes);
@@ -79,7 +80,8 @@ export default function FlashcardsScreen() {
             setCards(shuffled);
             setCurrentIndex(0);
             setScreenState('review');
-            haptics.medium();
+            const hapticStyle: 'medium' = 'medium'; // Explicit type
+            haptics[hapticStyle]();
         } else {
             // Generate new deck
             setGeneratingForNote(noteId);
@@ -391,7 +393,19 @@ export default function FlashcardsScreen() {
     }
 
     // ========== RENDER: Review Mode ==========
-    const currentCard = cards[currentIndex];
+    const activeCard = cards[currentIndex];
+
+    // Safe Ref Check to prevent crashes
+    if (!activeCard) {
+        // Fallback if index out of bounds (shouldn't happen with correct logic)
+        return (
+            <GlassLayout>
+                <View style={styles.centerContainer}>
+                    <ActivityIndicator color={colors.primary} />
+                </View>
+            </GlassLayout>
+        );
+    }
 
     return (
         <GlassLayout>
@@ -407,52 +421,57 @@ export default function FlashcardsScreen() {
                 </View>
 
                 <View style={styles.deckContainer}>
-                    {currentCard && (
-                        <GestureDetector gesture={panGesture}>
-                            <View style={styles.cardWrapper}>
-                                {/* Front Side */}
-                                <Animated.View style={[styles.cardFace, frontAnimatedStyle]}>
-                                    <GlassCard style={styles.cardContent} intensity={80}>
-                                        <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Question</Text>
-                                        <Text style={[styles.cardText, { color: colors.text }]}>{currentCard.front}</Text>
-                                        <Text style={[styles.tapHint, { color: colors.textMuted }]}>Tap to flip</Text>
-                                    </GlassCard>
-                                </Animated.View>
+                    <GestureDetector gesture={panGesture}>
+                        <View style={styles.cardWrapper}>
+                            {/* Front Side */}
+                            <Animated.View style={[styles.cardFace, frontAnimatedStyle]}>
+                                <GlassCard style={styles.cardContent} intensity={80}>
+                                    <View style={[styles.cardLabelBadge, { backgroundColor: colors.primary + '20' }]}>
+                                        <Text style={[styles.cardLabel, { color: colors.primary, marginBottom: 0 }]}>Question</Text>
+                                    </View>
+                                    <Text style={styles.cardText}>{activeCard.front}</Text>
+                                    <Text style={styles.tapHint}>Tap to flip</Text>
+                                </GlassCard>
+                            </Animated.View>
 
-                                {/* Back Side */}
-                                <Animated.View style={[styles.cardFace, styles.cardBack, backAnimatedStyle]}>
-                                    <GlassCard style={styles.cardContent} intensity={90}>
-                                        <Text style={[styles.cardLabel, { color: colors.success }]}>Answer</Text>
-                                        <Text style={[styles.cardText, { color: colors.text }]}>{currentCard.back}</Text>
-                                    </GlassCard>
-                                </Animated.View>
+                            {/* Back Side */}
+                            <Animated.View style={[styles.cardFace, styles.cardBack, backAnimatedStyle]}>
+                                <GlassCard style={styles.cardContent} intensity={90}>
+                                    <View style={[styles.cardLabelBadge, { backgroundColor: colors.success + '20' }]}>
+                                        <Text style={[styles.cardLabel, { color: colors.success, marginBottom: 0 }]}>Answer</Text>
+                                    </View>
+                                    <Text style={styles.cardText}>{activeCard.back}</Text>
+                                </GlassCard>
+                            </Animated.View>
 
-                                {/* Tap overlay */}
-                                <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleFlip} activeOpacity={1} />
-                            </View>
-                        </GestureDetector>
-                    )}
+                            {/* Tap overlay */}
+                            <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleFlip} activeOpacity={1} />
+                        </View>
+                    </GestureDetector>
                 </View>
 
                 {/* Controls */}
                 <View style={styles.controls}>
                     <TouchableOpacity
-                        style={[styles.controlBtn, { backgroundColor: colors.error + '20' }]}
+                        style={[styles.controlBtn, styles.controlBtnReject]}
                         onPress={() => handleCardResponse('left')}
+                        activeOpacity={0.7}
                     >
                         <XIcon size={28} color={colors.error} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.controlBtn, { backgroundColor: colors.primary + '20', width: 64, height: 64 }]}
+                        style={[styles.controlBtn, styles.controlBtnFlip]}
                         onPress={handleFlip}
+                        activeOpacity={0.7}
                     >
                         <RotateCw size={28} color={colors.primary} />
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.controlBtn, { backgroundColor: colors.success + '20' }]}
+                        style={[styles.controlBtn, styles.controlBtnAccept]}
                         onPress={() => handleCardResponse('right')}
+                        activeOpacity={0.7}
                     >
                         <Check size={28} color={colors.success} />
                     </TouchableOpacity>
@@ -462,7 +481,7 @@ export default function FlashcardsScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (colors: any) => StyleSheet.create({
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -470,11 +489,11 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     backButton: { padding: 8 },
-    title: { fontSize: 24, fontWeight: '700' },
+    title: { fontSize: 24, fontWeight: '700', color: colors.text },
     progressContainer: {
         flex: 1,
         height: 6,
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: colors.border,
         borderRadius: 3,
         overflow: 'hidden',
     },
@@ -482,28 +501,28 @@ const styles = StyleSheet.create({
 
     listContent: { padding: 20, paddingBottom: 100 },
     section: { marginBottom: 20 },
-    sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, flexDirection: 'row', alignItems: 'center' },
+    sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 12, flexDirection: 'row', alignItems: 'center', color: colors.text },
 
     deckCard: { flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 12 },
     deckContent: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-    deckTitle: { fontSize: 16, fontWeight: '600' },
-    deckSub: { fontSize: 12, marginTop: 2 },
+    deckTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+    deckSub: { fontSize: 12, marginTop: 2, color: colors.textSecondary },
     statsRow: { flexDirection: 'row', gap: 6 },
     statBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
     statText: { fontSize: 12, fontWeight: '700' },
     deleteBtn: { padding: 8, marginLeft: 8 },
 
     noteCard: { flexDirection: 'row', alignItems: 'center', padding: 16, marginBottom: 12 },
-    noteTitle: { fontSize: 16, fontWeight: '600' },
-    noteSub: { fontSize: 12, marginTop: 2 },
+    noteTitle: { fontSize: 16, fontWeight: '600', color: colors.text },
+    noteSub: { fontSize: 12, marginTop: 2, color: colors.textSecondary },
     badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
 
     emptyState: { alignItems: 'center', paddingVertical: 60 },
-    emptyText: { marginTop: 16, textAlign: 'center', lineHeight: 22 },
+    emptyText: { marginTop: 16, textAlign: 'center', lineHeight: 22, color: colors.textSecondary },
 
     loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    loadingText: { marginTop: 20, fontSize: 18, fontWeight: '600' },
-    loadingSub: { marginTop: 8, fontSize: 14 },
+    loadingText: { marginTop: 20, fontSize: 18, fontWeight: '600', color: colors.text },
+    loadingSub: { marginTop: 8, fontSize: 14, color: colors.textSecondary },
 
     deckContainer: {
         flex: 1,
@@ -529,21 +548,30 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    cardLabelBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 12,
+        marginBottom: 16,
+    },
     cardLabel: {
         fontSize: 14,
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginBottom: 20,
+        // marginBottom removed as it's handled by badge now
+        fontWeight: '700',
     },
     cardText: {
         fontSize: 22,
         fontWeight: '600',
         textAlign: 'center',
         lineHeight: 30,
+        color: colors.text,
     },
     tapHint: {
         marginTop: 40,
         fontSize: 12,
+        color: colors.textMuted,
     },
 
     controls: {
@@ -560,17 +588,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
+        borderColor: colors.border,
     },
+    controlBtnReject: { backgroundColor: colors.error + '20' },
+    controlBtnFlip: { backgroundColor: colors.primary + '20', width: 64, height: 64 },
+    controlBtnAccept: { backgroundColor: colors.success + '20' },
 
     centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
     resultCard: { padding: 40, alignItems: 'center', width: '100%' },
-    resultTitle: { fontSize: 24, fontWeight: '700', marginTop: 16 },
-    resultSub: { fontSize: 14, marginTop: 8 },
+    resultTitle: { fontSize: 24, fontWeight: '700', marginTop: 16, color: colors.text },
+    resultSub: { fontSize: 14, marginTop: 8, color: colors.textSecondary },
     statsGrid: { flexDirection: 'row', gap: 24, marginTop: 24 },
     statItem: { alignItems: 'center' },
     statValue: { fontSize: 28, fontWeight: '700' },
-    statLabel: { fontSize: 12, marginTop: 4 },
+    statLabel: { fontSize: 12, marginTop: 4, color: colors.textSecondary },
     buttonRow: { flexDirection: 'row', gap: 12, marginTop: 32, width: '100%' },
     button: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center' },
     buttonText: { fontWeight: '600' },

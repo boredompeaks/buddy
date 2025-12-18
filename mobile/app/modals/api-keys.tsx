@@ -1,16 +1,20 @@
 // API Keys Settings Modal - Configure Groq and Gemini API keys
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Modal, Alert, ActivityIndicator, Linking } from 'react-native';
-import { X, Key, Eye, EyeOff, Check, ExternalLink, AlertTriangle } from 'lucide-react-native';
+import { X, Key, Eye, EyeOff, Check, ExternalLink, AlertTriangle, ArrowLeft } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
+import { useRouter } from 'expo-router';
 import { COLORS, STORAGE_KEYS } from '../../src/constants';
+import { useThemeColors } from '../../src/hooks/useThemeColors';
 
 interface APIKeysModalProps {
-    visible: boolean;
-    onClose: () => void;
+    visible?: boolean;
+    onClose?: () => void;
 }
 
-export default function APIKeysModal({ visible, onClose }: APIKeysModalProps) {
+export default function APIKeysModal({ visible = true, onClose }: APIKeysModalProps) {
+    const router = useRouter();
+    const colors = useThemeColors();
     const [groqKey, setGroqKey] = useState('');
     const [geminiKey, setGeminiKey] = useState('');
     const [showGroqKey, setShowGroqKey] = useState(false);
@@ -18,6 +22,15 @@ export default function APIKeysModal({ visible, onClose }: APIKeysModalProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
+
+    // Close handler that works with both modal and page mode
+    const doClose = useCallback(() => {
+        if (onClose) {
+            onClose();
+        } else {
+            router.back();
+        }
+    }, [onClose, router]);
 
     // Load existing keys on mount
     useEffect(() => {
@@ -75,7 +88,7 @@ export default function APIKeysModal({ visible, onClose }: APIKeysModalProps) {
 
             setHasChanges(false);
             Alert.alert('Success', 'API keys saved securely.', [
-                { text: 'OK', onPress: onClose }
+                { text: 'OK', onPress: doClose }
             ]);
         } catch (error) {
             console.error('Failed to save API keys:', error);
@@ -83,7 +96,7 @@ export default function APIKeysModal({ visible, onClose }: APIKeysModalProps) {
         } finally {
             setIsSaving(false);
         }
-    }, [groqKey, geminiKey, onClose]);
+    }, [groqKey, geminiKey, doClose]);
 
     const handleClose = useCallback(() => {
         if (hasChanges) {
@@ -92,13 +105,13 @@ export default function APIKeysModal({ visible, onClose }: APIKeysModalProps) {
                 'You have unsaved changes. Discard them?',
                 [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Discard', style: 'destructive', onPress: onClose }
+                    { text: 'Discard', style: 'destructive', onPress: doClose }
                 ]
             );
         } else {
-            onClose();
+            doClose();
         }
-    }, [hasChanges, onClose]);
+    }, [hasChanges, doClose]);
 
     const openDocs = (provider: 'groq' | 'gemini') => {
         const urls = {

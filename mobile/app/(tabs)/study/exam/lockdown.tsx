@@ -1,6 +1,6 @@
 // Exam Lockdown Screen - Full answer persistence and proper navigation
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, BackHandler, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, BackHandler, TextInput, AppState, AppStateStatus } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Clock, ChevronDown, ChevronUp, Camera } from 'lucide-react-native';
@@ -129,6 +129,22 @@ export default function ExamLockdownScreen() {
         };
 
         const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, [saveAndNavigate]);
+
+    // Anti-Cheat: Auto-submit on backgrounding
+    useEffect(() => {
+        const handleAppStateChange = (nextAppState: AppStateStatus) => {
+            if (nextAppState.match(/inactive|background/)) {
+                // Determine if we should warn or immediate submit. 
+                // User requirement: "lockdown mode... close the app... auto-submit"
+                // Ideally show a toast if possible, but app is closing.
+                // Just save.
+                saveAndNavigate();
+            }
+        };
+
+        const subscription = AppState.addEventListener('change', handleAppStateChange);
         return () => subscription.remove();
     }, [saveAndNavigate]);
 

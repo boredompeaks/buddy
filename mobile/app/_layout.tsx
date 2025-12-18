@@ -13,6 +13,10 @@ import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import { OfflineBanner } from '../src/components/OfflineBanner';
 import { useNetworkStatus } from '../src/hooks/useNetworkStatus';
 import { runMigrations } from '../src/utils/migrations';
+import { silenceConsoleInProduction } from '../src/utils/logger';
+
+// Silence console output in production for better performance
+silenceConsoleInProduction();
 
 export default function RootLayout() {
     const [isReady, setIsReady] = useState(false);

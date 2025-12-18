@@ -2,19 +2,24 @@
 import { useState, useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Calendar, Clock, ChevronRight, X, BookOpen, Target, Sparkles } from 'lucide-react-native';
+import { Plus, Calendar as CalendarIcon, Clock, ChevronRight, X, BookOpen, Target, Sparkles, ChevronLeft } from 'lucide-react-native';
 import { useExamStore, useNotesStore } from '../../../src/stores';
-import { COLORS } from '../../../src/constants';
+import { useThemeColors } from '../../../src/hooks/useThemeColors';
 import type { ExamSchedule, Chapter } from '../../../src/types';
-import { format, differenceInDays, addDays } from 'date-fns';
+import { format, differenceInDays, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek } from 'date-fns';
 
 export default function ExamScheduleScreen() {
     const exams = useExamStore(state => state.exams);
     const addExam = useExamStore(state => state.addExam);
     const notes = useNotesStore(state => state.notes);
+    const colors = useThemeColors();
+    const styles = useMemo(() => makeStyles(colors), [colors]);
 
     const [showAddModal, setShowAddModal] = useState(false);
     const [newExam, setNewExam] = useState({ subjectName: '', examDate: addDays(new Date(), 30).getTime() });
+
+    // Calendar State
+    const [currentMonth, setCurrentMonth] = useState(new Date());
 
     // Sort exams by date
     const sortedExams = useMemo(() => {
@@ -55,6 +60,13 @@ export default function ExamScheduleScreen() {
         setShowAddModal(false);
     };
 
+    // Calendar Generation
+    const calendarDays = useMemo(() => {
+        const start = startOfWeek(startOfMonth(currentMonth));
+        const end = endOfWeek(endOfMonth(currentMonth));
+        return eachDayOfInterval({ start, end });
+    }, [currentMonth]);
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -72,13 +84,13 @@ export default function ExamScheduleScreen() {
                 {/* Today's Study Plan */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Sparkles size={20} color={COLORS.light.primary} />
+                        <Sparkles size={20} color={colors.primary} />
                         <Text style={styles.sectionTitle}>Today's Plan</Text>
                     </View>
 
                     {todaysPlan.length === 0 ? (
                         <View style={styles.emptyPlan}>
-                            <Target size={40} color={COLORS.light.textMuted} />
+                            <Target size={40} color={colors.textMuted} />
                             <Text style={styles.emptyText}>No exams scheduled</Text>
                             <Text style={styles.emptySubtext}>Add an exam to get personalized study plans</Text>
                         </View>
@@ -87,7 +99,7 @@ export default function ExamScheduleScreen() {
                             <View key={exam.id} style={styles.planCard}>
                                 <View style={styles.planHeader}>
                                     <View style={styles.planSubject}>
-                                        <BookOpen size={18} color={COLORS.light.primary} />
+                                        <BookOpen size={18} color={colors.primary} />
                                         <Text style={styles.planSubjectText}>{exam.subjectName}</Text>
                                     </View>
                                     <View style={[styles.daysChip, daysLeft < 7 && styles.daysChipUrgent]}>
@@ -99,7 +111,7 @@ export default function ExamScheduleScreen() {
 
                                 <View style={styles.planDetails}>
                                     <View style={styles.planDetail}>
-                                        <Clock size={14} color={COLORS.light.textSecondary} />
+                                        <Clock size={14} color={colors.textSecondary} />
                                         <Text style={styles.planDetailText}>{suggestedHours}h suggested</Text>
                                     </View>
                                 </View>
@@ -123,7 +135,7 @@ export default function ExamScheduleScreen() {
 
                     {sortedExams.length === 0 ? (
                         <View style={styles.emptyState}>
-                            <Calendar size={48} color={COLORS.light.textMuted} />
+                            <CalendarIcon size={48} color={colors.textMuted} />
                             <Text style={styles.emptyText}>No exams yet</Text>
                             <TouchableOpacity style={styles.addFirstButton} onPress={() => setShowAddModal(true)}>
                                 <Text style={styles.addFirstText}>Add Your First Exam</Text>
@@ -147,7 +159,7 @@ export default function ExamScheduleScreen() {
                                             </Text>
                                             {exam.chapters.length > 0 && (
                                                 <View style={styles.progressBar}>
-                                                    <View style={[styles.progressFill, { width: `${progress}%` }]} />
+                                                    <View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: colors.success }]} />
                                                 </View>
                                             )}
                                         </View>
@@ -161,7 +173,7 @@ export default function ExamScheduleScreen() {
                                                 days
                                             </Text>
                                         </View>
-                                        <ChevronRight size={20} color={COLORS.light.textMuted} />
+                                        <ChevronRight size={20} color={colors.textMuted} />
                                     </View>
                                 </TouchableOpacity>
                             );
@@ -177,7 +189,7 @@ export default function ExamScheduleScreen() {
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Add Exam</Text>
                             <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                                <X size={24} color={COLORS.light.text} />
+                                <X size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
 
@@ -187,28 +199,49 @@ export default function ExamScheduleScreen() {
                             value={newExam.subjectName}
                             onChangeText={(v) => setNewExam(prev => ({ ...prev, subjectName: v }))}
                             placeholder="e.g., Physics, Mathematics"
-                            placeholderTextColor={COLORS.light.textMuted}
+                            placeholderTextColor={colors.textMuted}
                         />
 
                         <Text style={styles.inputLabel}>Exam Date</Text>
-                        <View style={styles.dateOptions}>
-                            {[7, 14, 30, 60].map(days => (
-                                <TouchableOpacity
-                                    key={days}
-                                    style={[
-                                        styles.dateOption,
-                                        differenceInDays(newExam.examDate, Date.now()) === days && styles.dateOptionActive
-                                    ]}
-                                    onPress={() => setNewExam(prev => ({ ...prev, examDate: addDays(new Date(), days).getTime() }))}
-                                >
-                                    <Text style={[
-                                        styles.dateOptionText,
-                                        differenceInDays(newExam.examDate, Date.now()) === days && styles.dateOptionTextActive
-                                    ]}>
-                                        {days}d
-                                    </Text>
+
+                        {/* Custom Calendar Picker */}
+                        <View style={styles.calendarContainer}>
+                            <View style={styles.calendarHeader}>
+                                <TouchableOpacity onPress={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                                    <ChevronLeft size={20} color={colors.text} />
                                 </TouchableOpacity>
-                            ))}
+                                <Text style={styles.calendarTitle}>{format(currentMonth, 'MMMM yyyy')}</Text>
+                                <TouchableOpacity onPress={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+                                    <ChevronRight size={20} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
+                            <View style={styles.daysGrid}>
+                                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                                    <Text key={i} style={styles.dayLabel}>{d}</Text>
+                                ))}
+                                {calendarDays.map((day, i) => {
+                                    const isSelected = isSameDay(day, newExam.examDate);
+                                    const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                                    return (
+                                        <TouchableOpacity
+                                            key={i}
+                                            style={[
+                                                styles.dayCell,
+                                                isSelected && styles.dayCellSelected,
+                                                !isCurrentMonth && { opacity: 0.3 }
+                                            ]}
+                                            onPress={() => setNewExam(prev => ({ ...prev, examDate: day.getTime() }))}
+                                        >
+                                            <Text style={[
+                                                styles.dayText,
+                                                isSelected && styles.dayTextSelected
+                                            ]}>
+                                                {format(day, 'd')}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
                         </View>
 
                         <TouchableOpacity style={styles.submitButton} onPress={handleAddExam}>
@@ -221,14 +254,14 @@ export default function ExamScheduleScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.light.background },
+const makeStyles = (colors: any) => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
     content: { padding: 20 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    title: { fontSize: 28, fontWeight: '800', color: COLORS.light.text },
-    subtitle: { fontSize: 14, color: COLORS.light.textSecondary, marginTop: 4 },
+    title: { fontSize: 28, fontWeight: '800', color: colors.text },
+    subtitle: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
     addButton: {
-        backgroundColor: COLORS.light.primary,
+        backgroundColor: colors.primary,
         width: 48,
         height: 48,
         borderRadius: 24,
@@ -237,39 +270,39 @@ const styles = StyleSheet.create({
     },
     section: { marginBottom: 24 },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    sectionTitle: { fontSize: 18, fontWeight: '700', color: COLORS.light.text },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
     planCard: {
-        backgroundColor: COLORS.light.surface,
+        backgroundColor: colors.surface,
         padding: 16,
         borderRadius: 16,
         marginBottom: 12,
         borderLeftWidth: 4,
-        borderLeftColor: COLORS.light.primary,
+        borderLeftColor: colors.primary,
     },
     planHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     planSubject: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    planSubjectText: { fontSize: 16, fontWeight: '600', color: COLORS.light.text },
+    planSubjectText: { fontSize: 16, fontWeight: '600', color: colors.text },
     daysChip: {
-        backgroundColor: COLORS.light.primary + '20',
+        backgroundColor: colors.primary + '20',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
     },
-    daysChipUrgent: { backgroundColor: COLORS.light.error + '20' },
-    daysText: { fontSize: 12, fontWeight: '600', color: COLORS.light.primary },
-    daysTextUrgent: { color: COLORS.light.error },
+    daysChipUrgent: { backgroundColor: colors.error + '20' },
+    daysText: { fontSize: 12, fontWeight: '600', color: colors.primary },
+    daysTextUrgent: { color: colors.error },
     planDetails: { flexDirection: 'row', gap: 16, marginTop: 12 },
     planDetail: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    planDetailText: { fontSize: 13, color: COLORS.light.textSecondary },
-    chaptersToStudy: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.light.border },
-    chaptersLabel: { fontSize: 12, fontWeight: '600', color: COLORS.light.textSecondary, marginBottom: 4 },
-    chapterItem: { fontSize: 14, color: COLORS.light.text, marginTop: 2 },
+    planDetailText: { fontSize: 13, color: colors.textSecondary },
+    chaptersToStudy: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
+    chaptersLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginBottom: 4 },
+    chapterItem: { fontSize: 14, color: colors.text, marginTop: 2 },
     emptyPlan: { alignItems: 'center', padding: 32, gap: 8 },
     emptyState: { alignItems: 'center', padding: 40, gap: 12 },
-    emptyText: { fontSize: 16, fontWeight: '600', color: COLORS.light.text },
-    emptySubtext: { fontSize: 13, color: COLORS.light.textSecondary, textAlign: 'center' },
+    emptyText: { fontSize: 16, fontWeight: '600', color: colors.text },
+    emptySubtext: { fontSize: 13, color: colors.textSecondary, textAlign: 'center' },
     addFirstButton: {
-        backgroundColor: COLORS.light.primary,
+        backgroundColor: colors.primary,
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderRadius: 12,
@@ -279,51 +312,86 @@ const styles = StyleSheet.create({
     examCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.light.surface,
+        backgroundColor: colors.surface,
         padding: 16,
         borderRadius: 16,
         marginBottom: 12,
     },
     examMain: { flex: 1 },
-    examSubject: { fontSize: 17, fontWeight: '600', color: COLORS.light.text },
-    examDate: { fontSize: 13, color: COLORS.light.textSecondary, marginTop: 4 },
+    examSubject: { fontSize: 17, fontWeight: '600', color: colors.text },
+    examDate: { fontSize: 13, color: colors.textSecondary, marginTop: 4 },
     examMeta: { marginTop: 8 },
-    examChapters: { fontSize: 12, color: COLORS.light.textMuted },
-    progressBar: { height: 4, backgroundColor: COLORS.light.border, borderRadius: 2, marginTop: 6 },
-    progressFill: { height: '100%', backgroundColor: COLORS.light.success, borderRadius: 2 },
+    examChapters: { fontSize: 12, color: colors.textMuted },
+    progressBar: { height: 4, backgroundColor: colors.border, borderRadius: 2, marginTop: 6 },
+    progressFill: { height: '100%', borderRadius: 2 },
     examRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    countdown: { alignItems: 'center', backgroundColor: COLORS.light.primary + '15', padding: 12, borderRadius: 12 },
-    countdownUrgent: { backgroundColor: COLORS.light.error + '15' },
-    countdownNumber: { fontSize: 22, fontWeight: '700', color: COLORS.light.primary },
-    countdownUrgentText: { color: COLORS.light.error },
-    countdownLabel: { fontSize: 10, color: COLORS.light.primary },
+    countdown: { alignItems: 'center', backgroundColor: colors.primary + '15', padding: 12, borderRadius: 12 },
+    countdownUrgent: { backgroundColor: colors.error + '15' },
+    countdownNumber: { fontSize: 22, fontWeight: '700', color: colors.primary },
+    countdownUrgentText: { color: colors.error },
+    countdownLabel: { fontSize: 10, color: colors.primary },
+
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: COLORS.light.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24 },
+    modalContent: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.light.text },
-    inputLabel: { fontSize: 14, fontWeight: '600', color: COLORS.light.textSecondary, marginBottom: 8 },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+    inputLabel: { fontSize: 14, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 },
     input: {
-        backgroundColor: COLORS.light.surfaceVariant,
+        backgroundColor: colors.surfaceVariant,
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderRadius: 12,
         fontSize: 16,
-        color: COLORS.light.text,
+        color: colors.text,
         marginBottom: 20,
     },
-    dateOptions: { flexDirection: 'row', gap: 12, marginBottom: 24 },
-    dateOption: {
-        flex: 1,
-        paddingVertical: 12,
-        alignItems: 'center',
-        backgroundColor: COLORS.light.surfaceVariant,
-        borderRadius: 12,
+    // Calendar Styles
+    calendarContainer: {
+        backgroundColor: colors.surfaceVariant,
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 24,
     },
-    dateOptionActive: { backgroundColor: COLORS.light.primary },
-    dateOptionText: { fontSize: 14, fontWeight: '600', color: COLORS.light.textSecondary },
-    dateOptionTextActive: { color: '#fff' },
+    calendarHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    calendarTitle: { fontSize: 16, fontWeight: '700', color: colors.text },
+    daysGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    dayLabel: {
+        width: '14.28%',
+        textAlign: 'center',
+        fontSize: 12,
+        color: colors.textSecondary,
+        marginBottom: 8,
+    },
+    dayCell: {
+        width: '14.28%',
+        aspectRatio: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    dayCellSelected: {
+        backgroundColor: colors.primary,
+        borderRadius: 20,
+    },
+    dayText: {
+        fontSize: 14,
+        color: colors.text,
+    },
+    dayTextSelected: {
+        color: '#fff',
+        fontWeight: '700',
+    },
+
     submitButton: {
-        backgroundColor: COLORS.light.primary,
+        backgroundColor: colors.primary,
         paddingVertical: 16,
         borderRadius: 12,
         alignItems: 'center',

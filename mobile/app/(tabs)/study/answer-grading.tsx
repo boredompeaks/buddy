@@ -30,59 +30,72 @@ export default function AnswerGradingScreen() {
 
     const [isLoading, setIsLoading] = useState(true);
     const [result, setResult] = useState<ExamResult | null>(null);
+    const [calculatedScore, setCalculatedScore] = useState({ score: 0, percentage: 0 });
 
-    // Get data from params or load from storage
+    // Get data from params or load from storage - run ONCE on mount
     useEffect(() => {
+        let mounted = true;
+
         const loadResult = async () => {
             // Try params first
             if (params.subject && params.questionsAttempted) {
-                setResult({
+                const examResult: ExamResult = {
                     subject: params.subject as string,
                     questionsAttempted: parseInt(params.questionsAttempted as string) || 0,
                     totalQuestions: parseInt(params.totalQuestions as string) || 0,
                     timeTaken: parseInt(params.timeTaken as string) || 0,
                     submittedAt: Date.now(),
-                });
-                setIsLoading(false);
-                haptics.success();
+                };
+
+                if (mounted) {
+                    setResult(examResult);
+                    // Calculate score ONCE, not on every render
+                    const attemptRatio = examResult.questionsAttempted / examResult.totalQuestions;
+                    const baseScore = Math.round(attemptRatio * 85 + Math.random() * 10);
+                    const finalScore = Math.min(100, baseScore);
+                    setCalculatedScore({ score: finalScore, percentage: finalScore });
+                    setIsLoading(false);
+                }
                 return;
             }
 
             // Fallback to storage
             try {
                 const saved = await AsyncStorage.getItem(EXAM_RESULT_KEY);
-                if (saved) {
+                if (saved && mounted) {
                     const parsed = JSON.parse(saved);
                     setResult(parsed);
-                    haptics.success();
+                    // Calculate score ONCE
+                    const attemptRatio = parsed.questionsAttempted / parsed.totalQuestions;
+                    const baseScore = Math.round(attemptRatio * 85 + Math.random() * 10);
+                    const finalScore = Math.min(100, baseScore);
+                    setCalculatedScore({ score: finalScore, percentage: finalScore });
                 }
             } catch (e) {
                 console.error('Failed to load exam result:', e);
             }
-            setIsLoading(false);
+            if (mounted) {
+                setIsLoading(false);
+            }
         };
 
         loadResult();
-    }, [params]);
+
+        return () => { mounted = false; };
+    }, []); // Empty dependency array - run once on mount
+
+    // Trigger haptics only once when result is loaded
+    useEffect(() => {
+        if (result && !isLoading) {
+            haptics.success();
+        }
+    }, [result, isLoading]); // Separate effect for haptics
 
     const formatTime = (seconds: number) => {
         const h = Math.floor(seconds / 3600);
         const m = Math.floor((seconds % 3600) / 60);
         if (h > 0) return `${h}h ${m}m`;
         return `${m} min`;
-    };
-
-    // Calculate simulated score (in real app, this would come from AI grading)
-    const getScore = () => {
-        if (!result) return { score: 0, total: 100, percentage: 0 };
-        // Simulate a score based on questions attempted
-        const attemptRatio = result.questionsAttempted / result.totalQuestions;
-        const baseScore = Math.round(attemptRatio * 85 + Math.random() * 10);
-        return {
-            score: Math.min(100, baseScore),
-            total: 100,
-            percentage: Math.min(100, baseScore)
-        };
     };
 
     const getGrade = (percentage: number) => {
@@ -104,7 +117,7 @@ export default function AnswerGradingScreen() {
         );
     }
 
-    const { score, total, percentage } = getScore();
+    const { score, percentage } = calculatedScore;
     const grade = getGrade(percentage);
 
     return (

@@ -13,7 +13,7 @@ export default function TabLayout() {
                 headerShown: false,
                 tabBarStyle: [
                     styles.tabBar,
-                    { 
+                    {
                         backgroundColor: colors.surface,
                         borderTopColor: colors.border,
                     }
@@ -62,6 +62,17 @@ export default function TabLayout() {
                     tabBarIcon: ({ color, size }) => <User size={size} color={color} />,
                 }}
             />
+
+            {/* Hidden Routes */}
+            <Tabs.Screen name="study/quiz" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="study/flashcards" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="study/analytics" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="study/paper-generator" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="study/answer-grading" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="study/exam/review" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="study/exam/lockdown" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="routine/daily-planner" options={{ href: null, tabBarStyle: { display: 'none' } }} />
+            <Tabs.Screen name="routine/exam-schedule" options={{ href: null, tabBarStyle: { display: 'none' } }} />
         </Tabs>
     );
 }

@@ -1,14 +1,16 @@
 // Profile Tab Screen
 import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Switch, Alert, StatusBar } from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { User, Moon, Bell, FileJson, Key, Info, ChevronRight, Flame } from 'lucide-react-native';
+import { User, Moon, Bell, FileJson, Key, Info, ChevronRight, Flame, Shield, Lock } from 'lucide-react-native';
 import { useSettingsStore, useStreakStore, useNotesStore } from '../../src/stores';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import APIKeysModal from '../modals/api-keys';
 import * as Clipboard from 'expo-clipboard';
 
 export default function ProfileScreen() {
+    const router = useRouter();
     const colors = useThemeColors();
     const settings = useSettingsStore(state => state.settings);
     const updateSettings = useSettingsStore(state => state.updateSettings);
@@ -22,6 +24,8 @@ export default function ProfileScreen() {
         { id: 'theme', icon: Moon, title: 'Dark Mode', type: 'toggle', value: settings.theme === 'dark' },
         { id: 'notifications', icon: Bell, title: 'Notifications', type: 'toggle', value: settings.notificationsEnabled },
         { id: 'apiKeys', icon: Key, title: 'API Keys', type: 'link' },
+        { id: 'account', icon: Shield, title: 'Account & Data', type: 'link' },
+        { id: 'privacy', icon: Lock, title: 'Privacy & Terms', type: 'link' },
         { id: 'export', icon: FileJson, title: 'Export Data', type: 'link' },
         { id: 'about', icon: Info, title: 'About MindVault', type: 'link' },
     ];
@@ -38,6 +42,12 @@ export default function ProfileScreen() {
         switch (id) {
             case 'apiKeys':
                 setApiKeysVisible(true);
+                break;
+            case 'account':
+                router.push('/settings/account' as any);
+                break;
+            case 'privacy':
+                router.push('/settings/privacy' as any);
                 break;
             case 'export':
                 // Export notes as JSON to clipboard

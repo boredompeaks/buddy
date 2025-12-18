@@ -641,3 +641,67 @@ ${safeContent}`,
         throw error;
     }
 }
+
+// ================== SCHEDULE NARRATOR ==================
+
+interface ScheduleSlotInfo {
+    type: string;
+    subject: string | null;
+    start: string;
+    end: string;
+}
+
+interface ScheduleDayInfo {
+    date: string;
+    slots: ScheduleSlotInfo[];
+    friction_notes?: string[];
+}
+
+/**
+ * Generates AI commentary for a study schedule.
+ * Provides motivational, actionable guidance based on today's plan.
+ */
+export async function narrateSchedule(schedule: ScheduleDayInfo[]): Promise<string> {
+    try {
+        const groq = await getGroqClient();
+
+        // Build a summary of today's schedule for the AI
+        const today = new Date().toISOString().split('T')[0];
+        const todaySchedule = schedule.find(d => d.date === today);
+
+        if (!todaySchedule || todaySchedule.slots.length === 0) {
+            return "No study sessions scheduled for today. Consider adding exams and notes to generate a personalized plan!";
+        }
+
+        const slotsSummary = todaySchedule.slots.map(s =>
+            `${s.start}-${s.end}: ${s.type.toUpperCase()} ${s.subject || 'General'}`
+        ).join('\n');
+
+        const frictionContext = todaySchedule.friction_notes?.length
+            ? `\nNote: ${todaySchedule.friction_notes.join('. ')}`
+            : '';
+
+        const response = await withTimeout(groq.chat.completions.create({
+            model: AI_CONFIG.groq.model,
+            messages: [
+                {
+                    role: 'system',
+                    content: `You are MindVault's study coach. Generate a brief, encouraging commentary (2-3 sentences max) about the user's study schedule. Be specific about subjects and times. Focus on motivation and practical tips. No greetings or sign-offs.`,
+                },
+                {
+                    role: 'user',
+                    content: `Today's study schedule:\n${slotsSummary}${frictionContext}\n\nProvide a brief motivational insight about this plan.`,
+                },
+            ],
+            max_tokens: 150,
+            temperature: 0.7,
+        }), 15000);
+
+        return response.choices[0]?.message?.content?.trim() || 'Your schedule is set. Focus and conquer!';
+    } catch (error) {
+        console.error('Schedule narration error:', error);
+        // Return a default message instead of throwing
+        return 'Your study plan is ready. Stay focused and tackle each session with intention!';
+    }
+}
+

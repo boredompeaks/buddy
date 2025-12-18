@@ -4,7 +4,7 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl } 
 import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Flame, BookOpen, CheckCircle2, ChevronRight, Sparkles, Target, Plus, Brain, FileText } from 'lucide-react-native';
+import { Flame, BookOpen, CheckCircle2, ChevronRight, Sparkles, Target, Plus, Brain, FileText, Clock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useNotesStore, useTasksStore, useExamStore, useStreakStore } from '../../src/stores';
@@ -154,6 +154,17 @@ export default function HomeScreen() {
                                     <Text style={[styles.actionText, { color: colors.text }]}>Ask AI</Text>
                                 </TouchableOpacity>
                             </Animated.View>
+
+                            <Animated.View entering={FadeInDown.delay(500).springify()}>
+                                <TouchableOpacity
+                                    style={[styles.actionCard, { backgroundColor: colors.surface }]}
+                                    onPress={() => router.push('/modals/study-timer' as any)}
+                                >
+                                    <Clock size={24} color={colors.warning} />
+                                    <Text style={[styles.actionText, { color: colors.text }]}>Focus Timer</Text>
+                                </TouchableOpacity>
+                            </Animated.View>
+
                         </View>
 
                     </View>
@@ -219,7 +230,7 @@ export default function HomeScreen() {
                     <View style={{ height: 40 }} />
                 </ScrollView>
             </SafeAreaView>
-        </View>
+        </View >
     );
 
     function dateColor(days: number) {

@@ -84,32 +84,34 @@ export default function StudyScreen() {
                 </View>
 
                 {/* Main Graph Card */}
-                <GlassCard style={styles.chartCard} intensity={25}>
-                    <View style={styles.chartHeader}>
-                        <Text style={[styles.cardTitle, { color: colors.text }]}>Learning Curve</Text>
-                        <Text style={[styles.cardValue, { color: colors.success }]}>+12%</Text>
-                    </View>
-                    <View style={styles.chartContainer}>
-                        <LineChart
-                            data={chartData}
-                            color={colors.primary}
-                            thickness={3}
-                            dataPointsColor={colors.primary}
-                            startFillColor={colors.primary}
-                            endFillColor={colors.primary}
-                            startOpacity={0.4}
-                            endOpacity={0.0}
-                            areaChart
-                            curved
-                            hideRules
-                            hideYAxisText
-                            hideAxesAndRules
-                            height={120}
-                            width={280} // Approx width
-                            adjustToWidth
-                        />
-                    </View>
-                </GlassCard>
+                <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/(tabs)/study/analytics' as any)}>
+                    <GlassCard style={styles.chartCard} intensity={25}>
+                        <View style={styles.chartHeader}>
+                            <Text style={[styles.cardTitle, { color: colors.text }]}>Learning Curve</Text>
+                            <Text style={[styles.cardValue, { color: colors.success }]}>+12%</Text>
+                        </View>
+                        <View style={styles.chartContainer}>
+                            <LineChart
+                                data={chartData}
+                                color={colors.primary}
+                                thickness={3}
+                                dataPointsColor={colors.primary}
+                                startFillColor={colors.primary}
+                                endFillColor={colors.primary}
+                                startOpacity={0.4}
+                                endOpacity={0.0}
+                                areaChart
+                                curved
+                                hideRules
+                                hideYAxisText
+                                hideAxesAndRules
+                                height={120}
+                                width={280} // Approx width
+                                adjustToWidth
+                            />
+                        </View>
+                    </GlassCard>
+                </TouchableOpacity>
 
                 {/* Main Tools Grid */}
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Tools</Text>

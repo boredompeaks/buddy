@@ -8,6 +8,7 @@ import {
     ScrollView,
     RefreshControl,
     ActivityIndicator,
+    Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -87,30 +88,44 @@ export default function DailyPlannerScreen() {
     const handleSlotPress = (slot: ScheduleSlot, index: number) => {
         haptics.selection();
 
-        // If completed, toggle off - otherwise navigate
-        if (slot.completed) {
-            // Could toggle, but for now just acknowledge
+        if (slot.completed) return;
+
+        // Determine action based on slot type
+        const isReview = slot.type === 'review' || slot.type === 'mini_review';
+
+        // Find matching note
+        const matchingNote = notes.find(n =>
+            slot.noteId ? n.id === slot.noteId :
+                slot.chapter_id ? n.title.toLowerCase().includes(slot.chapter_id.toLowerCase()) :
+                    n.subject === slot.subject
+        );
+
+        if (isReview) {
+            // Navigate to Flashcards
+            if (matchingNote) {
+                router.push({
+                    pathname: '/study/flashcards',
+                    params: { noteId: matchingNote.id, subject: slot.subject }
+                });
+            } else {
+                // If we know the subject, go to flashcards for subject
+                router.push({
+                    pathname: '/study/flashcards',
+                    params: { subject: slot.subject }
+                });
+            }
             return;
         }
 
-        // Deep link based on slot content
-        if (slot.subject) {
-            // Find notes for this subject/chapter
-            const matchingNote = notes.find(n =>
-                slot.noteId ? n.id === slot.noteId :
-                    slot.chapter_id ? n.title.toLowerCase().includes(slot.chapter_id.toLowerCase()) :
-                        n.subject === slot.subject
-            );
-
-            if (matchingNote) {
-                router.push(`/note/${matchingNote.id}`);
-            } else {
-                // Navigate to notes filtered by subject
-                router.push({
-                    pathname: '/(tabs)/notes',
-                    params: { filterSubject: slot.subject }
-                });
-            }
+        // Default: Open Note
+        if (matchingNote) {
+            router.push(`/note/${matchingNote.id}`);
+        } else {
+            // Navigate to notes filtered by subject
+            router.push({
+                pathname: '/(tabs)/notes',
+                params: { filterSubject: slot.subject }
+            });
         }
     };
 
@@ -120,10 +135,25 @@ export default function DailyPlannerScreen() {
     };
 
     const handleRegenerate = async () => {
-        haptics.medium();
+        Alert.alert(
+            'Regenerate Schedule?',
+            'This will overwrite today\'s existing plan with a new AI-generated schedule. Continue?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Regenerate',
+                    style: 'destructive',
+                    onPress: async () => {
+                        haptics.medium();
+                        performGeneration();
+                    }
+                }
+            ]
+        );
+    };
 
+    const performGeneration = async () => {
         // Convert exams from store to scheduler format
-        // ExamSchedule uses subjectName and examDate (number), scheduler uses subject and date (string)
         const schedulerExams = exams.map(e => ({
             subject: e.subjectName,
             date: format(new Date(e.examDate), 'yyyy-MM-dd'),
@@ -134,7 +164,7 @@ export default function DailyPlannerScreen() {
         const chapters = notes.map(n => ({
             chapter_id: n.id,
             subject: n.subject,
-            estimated_hours: 2, // Default
+            estimated_hours: 2,
             default_difficulty: 0.5,
             exam_weight: 1,
             question_density: 0.5,

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { StyleSheet, ViewStyle, Platform, Pressable, StyleProp } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
@@ -14,7 +14,7 @@ interface GlassCardProps {
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export default function GlassCard({
+function GlassCardComponent({
     children,
     style,
     intensity = 30,
@@ -31,13 +31,13 @@ export default function GlassCard({
         transform: [{ scale: scale.value }],
     }));
 
-    const handlePressIn = () => {
+    const handlePressIn = useCallback(() => {
         scale.value = withSpring(activeScale, { damping: 10, stiffness: 400 });
-    };
+    }, [activeScale, scale]);
 
-    const handlePressOut = () => {
+    const handlePressOut = useCallback(() => {
         scale.value = withSpring(1, { damping: 10, stiffness: 400 });
-    };
+    }, [scale]);
 
     const Container = onPress ? AnimatedPressable : Animated.View;
 
@@ -65,6 +65,10 @@ export default function GlassCard({
         </Container>
     );
 }
+
+// Memoize to prevent unnecessary re-renders
+const GlassCard = memo(GlassCardComponent);
+export default GlassCard;
 
 const styles = StyleSheet.create({
     container: {

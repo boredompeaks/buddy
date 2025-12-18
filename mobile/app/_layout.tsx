@@ -9,9 +9,14 @@ import { initDatabase } from '../src/services/database';
 import { useNotesStore, useTasksStore, useExamStore, useSettingsStore, useStreakStore, useStudyStatsStore } from '../src/stores';
 import { useFlashcardStore } from '../src/stores/flashcards';
 import { COLORS } from '../src/constants';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
+import { OfflineBanner } from '../src/components/OfflineBanner';
+import { useNetworkStatus } from '../src/hooks/useNetworkStatus';
+import { runMigrations } from '../src/utils/migrations';
 
 export default function RootLayout() {
     const [isReady, setIsReady] = useState(false);
+    const networkStatus = useNetworkStatus();
     const loadNotes = useNotesStore(state => state.loadNotes);
     const loadTasks = useTasksStore(state => state.loadTasks);
     const loadExams = useExamStore(state => state.loadExams);
@@ -24,6 +29,9 @@ export default function RootLayout() {
     useEffect(() => {
         async function init() {
             try {
+                // Run migrations before loading data
+                await runMigrations();
+
                 // Initialize database
                 await initDatabase();
 
@@ -58,30 +66,33 @@ export default function RootLayout() {
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>
             <SafeAreaProvider>
-                <StatusBar style="auto" />
-                <Stack
-                    screenOptions={{
-                        headerShown: false,
-                        animation: 'slide_from_right',
-                        contentStyle: { backgroundColor: '#0f172a' }, // Deep Midnight Blue
-                    }}
-                >
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen
-                        name="note/[id]"
-                        options={{
-                            presentation: 'card',
+                <ErrorBoundary>
+                    <StatusBar style="auto" />
+                    <OfflineBanner isVisible={networkStatus.isConnected === false} />
+                    <Stack
+                        screenOptions={{
+                            headerShown: false,
                             animation: 'slide_from_right',
+                            contentStyle: { backgroundColor: '#0f172a' }, // Deep Midnight Blue
                         }}
-                    />
-                    <Stack.Screen
-                        name="modals/ai-chat"
-                        options={{
-                            presentation: 'modal',
-                            animation: 'slide_from_bottom',
-                        }}
-                    />
-                </Stack>
+                    >
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen
+                            name="note/[id]"
+                            options={{
+                                presentation: 'card',
+                                animation: 'slide_from_right',
+                            }}
+                        />
+                        <Stack.Screen
+                            name="modals/ai-chat"
+                            options={{
+                                presentation: 'modal',
+                                animation: 'slide_from_bottom',
+                            }}
+                        />
+                    </Stack>
+                </ErrorBoundary>
             </SafeAreaProvider>
         </GestureHandlerRootView>
     );
